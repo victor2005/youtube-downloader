@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, session
 import yt_dlp
 import os
 import tempfile
@@ -6,14 +6,17 @@ import threading
 import time
 from pathlib import Path
 import logging
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 
-# Store download progress
+# Store download progress and user files
 download_progress = {}
+user_downloads = {}  # session_id -> list of files
 
 class ProgressHook:
     def __init__(self, download_id):
@@ -36,6 +39,11 @@ class ProgressHook:
 
 @app.route('/')
 def index():
+    # Initialize session if not exists
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+        user_downloads[session['user_id']] = []
+    
     return render_template('index.html')
 
 @app.route('/health')
@@ -57,8 +65,15 @@ def download():
         
         logging.info(f"Starting download for URL: {url}, format: {format_type}")
         
+        # Ensure user has session
+        if 'user_id' not in session:
+            session['user_id'] = str(uuid.uuid4())
+            user_downloads[session['user_id']] = []
+        
+        user_id = session['user_id']
+        
         # Start download in background thread
-        thread = threading.Thread(target=download_video, args=(url, format_type, download_id))
+        thread = threading.Thread(target=download_video, args=(url, format_type, download_id, user_id))
         thread.daemon = True  # Make thread daemon so it doesn't block shutdown
         thread.start()
         
@@ -67,13 +82,13 @@ def download():
         logging.error(f"Error in download endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-def download_video(url, format_type, download_id):
+def download_video(url, format_type, download_id, user_id):
     try:
-        logging.info(f"Processing download {download_id}: {url}")
+        logging.info(f"Processing download {download_id}: {url} for user {user_id}")
         
-        # Create downloads directory
-        downloads_dir = Path('downloads')
-        downloads_dir.mkdir(exist_ok=True)
+        # Create user-specific downloads directory
+        downloads_dir = Path('downloads') / user_id
+        downloads_dir.mkdir(parents=True, exist_ok=True)
         
         # Configure yt-dlp options with better error handling
         base_opts = {
@@ -102,6 +117,22 @@ def download_video(url, format_type, download_id):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
             
+        # Add completed file to user's download list
+        if user_id not in user_downloads:
+            user_downloads[user_id] = []
+            
+        # Find the downloaded file and add to user's list
+        for file_path in downloads_dir.iterdir():
+            if file_path.is_file():
+                file_info = {
+                    'name': file_path.name,
+                    'size': file_path.stat().st_size,
+                    'modified': file_path.stat().st_mtime,
+                    'user_id': user_id
+                }
+                if file_info not in user_downloads[user_id]:
+                    user_downloads[user_id].append(file_info)
+            
         logging.info(f"Download {download_id} completed successfully")
             
     except Exception as e:
@@ -118,18 +149,33 @@ def get_progress(download_id):
 
 @app.route('/downloads')
 def list_downloads():
-    downloads_dir = Path('downloads')
-    if not downloads_dir.exists():
-        return jsonify([])
+    # Ensure user has session
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+        user_downloads[session['user_id']] = []
     
-    files = []
-    for file_path in downloads_dir.iterdir():
-        if file_path.is_file():
-            files.append({
-                'name': file_path.name,
-                'size': file_path.stat().st_size,
-                'modified': file_path.stat().st_mtime
-            })
+    user_id = session['user_id']
+    
+    # Get user's downloads from memory first
+    if user_id in user_downloads:
+        files = user_downloads[user_id].copy()
+    else:
+        files = []
+        user_downloads[user_id] = []
+    
+    # Also check user's directory for any files
+    user_downloads_dir = Path('downloads') / user_id
+    if user_downloads_dir.exists():
+        for file_path in user_downloads_dir.iterdir():
+            if file_path.is_file():
+                file_info = {
+                    'name': file_path.name,
+                    'size': file_path.stat().st_size,
+                    'modified': file_path.stat().st_mtime
+                }
+                # Avoid duplicates
+                if not any(f['name'] == file_info['name'] for f in files):
+                    files.append(file_info)
     
     # Sort by modification time (newest first)
     files.sort(key=lambda x: x['modified'], reverse=True)
@@ -137,8 +183,13 @@ def list_downloads():
 
 @app.route('/download-file/<filename>')
 def download_file(filename):
-    downloads_dir = Path('downloads')
-    file_path = downloads_dir / filename
+    # Ensure user has session
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    user_downloads_dir = Path('downloads') / user_id
+    file_path = user_downloads_dir / filename
     
     if not file_path.exists():
         return jsonify({'error': 'File not found'}), 404
