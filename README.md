@@ -76,8 +76,10 @@ Downloaded files are stored in the `downloads/` directory within the project fol
 4. **Railway will automatically deploy** your app!
 5. **Share the generated URL** with your friends
 
-### Deploy Button
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/python-flask)
+### 🚀 One-Click Deploy
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/NqNrFx?referralCode=victor2005)
+
+**Or deploy manually:**
 
 ## Troubleshooting
 
