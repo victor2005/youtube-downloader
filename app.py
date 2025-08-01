@@ -309,12 +309,27 @@ def download_video(url, format_type, download_id, user_id):
                     logging.error(f"URL extraction failed for {download_id}: {extract_error}")
                     raise Exception(f"Failed to extract video info: {extract_error}")
                 
+                # Update progress to show download starting
+                download_progress[download_id] = {
+                    'status': 'downloading',
+                    'percent': '0%',
+                    'speed': 'Initializing...',
+                    'message': 'Download started'
+                }
+                
                 # Now proceed with actual download
                 logging.info(f"Starting actual download for {download_id}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     logging.info(f"Calling yt-dlp download for {download_id}")
                     ydl.download([url])
                     logging.info(f"yt-dlp download completed for {download_id}")
+                
+                # Manually update progress to finished if hook didn't catch it
+                download_progress[download_id] = {
+                    'status': 'processing',
+                    'message': 'Download completed, processing files...'
+                }
+                
                 download_success = True
             except Exception as e:
                 error_message = str(e)
@@ -328,13 +343,13 @@ def download_video(url, format_type, download_id, user_id):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
             try:
-                future.result(timeout=60)  # 1 minute timeout for debugging
+                future.result(timeout=180)  # 3 minute timeout
                 logging.info(f"Download thread completed for {download_id}, success: {download_success}")
             except concurrent.futures.TimeoutError:
-                logging.error(f"Download timed out after 1 minute for {download_id}")
+                logging.error(f"Download timed out after 3 minutes for {download_id}")
                 download_progress[download_id] = {
                     'status': 'error',
-                    'error': 'Download timed out after 1 minute (debugging mode)'
+                    'error': 'Download timed out after 3 minutes'
                 }
                 return
         
@@ -416,6 +431,13 @@ def download_video(url, format_type, download_id, user_id):
                 'error': f'Post-processing failed: {str(conv_error)}'
             }
             
+        # Final status update to mark as completed
+        if download_id in download_progress:
+            download_progress[download_id] = {
+                'status': 'finished',
+                'message': 'Download completed successfully!'
+            }
+        
         logging.info(f"Download {download_id} completed successfully")
             
     except Exception as e:

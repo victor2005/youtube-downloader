@@ -73,6 +73,10 @@ function monitorProgress(downloadId) {
                 progressText.textContent = progress.message || 'Starting download...';
                 progressFill.style.width = '25%';
                 setTimeout(checkProgress, 1000);
+            } else if (progress.status === 'processing') {
+                progressText.textContent = progress.message || 'Processing files...';
+                progressFill.style.width = '85%';
+                setTimeout(checkProgress, 1000);
             } else if (progress.status === 'converting') {
                 progressText.textContent = progress.message || 'Converting to MP3...';
                 progressFill.style.width = '90%';
