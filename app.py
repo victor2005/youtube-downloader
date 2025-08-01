@@ -118,6 +118,9 @@ def index():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
         user_downloads[session['user_id']] = []
+        logging.info(f"Index page: Created new session with user_id: {session['user_id']}")
+    else:
+        logging.info(f"Index page: Using existing session with user_id: {session['user_id']}")
     
     return render_template('index.html')
 
@@ -177,7 +180,16 @@ def debug_status():
         'user_downloads_count': len(user_downloads),
         'current_user_id': current_user_id,
         'user_downloads_in_memory': user_downloads.get(current_user_id, []),
-        'files_on_disk': files_on_disk
+        'files_on_disk': files_on_disk,
+        'all_user_downloads': user_downloads  # Show all user download data
+    })
+
+@app.route('/session-info')
+def session_info():
+    """Simple session info endpoint"""
+    return jsonify({
+        'session_id': session.get('user_id', 'no_session'),
+        'session_keys': list(session.keys())
     })
 
 @app.route('/download', methods=['POST'])
@@ -575,10 +587,12 @@ def list_downloads():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
         user_downloads[session['user_id']] = []
-        logging.info(f"Created new session with user_id: {session['user_id']}")
+        logging.info(f"Downloads endpoint: Created new session with user_id: {session['user_id']}")
     
     user_id = session['user_id']
-    logging.info(f"Listing downloads for user_id: {user_id}")
+    logging.info(f"Downloads endpoint: Listing downloads for user_id: {user_id}")
+    logging.info(f"Downloads endpoint: Available user_downloads keys: {list(user_downloads.keys())}")
+    logging.info(f"Downloads endpoint: Files in memory for this user: {user_downloads.get(user_id, 'NOT_FOUND')}")
     
     # Get user's downloads from memory first
     if user_id in user_downloads:
