@@ -39,6 +39,28 @@ def after_request(response):
 # Store download progress and user files
 download_progress = {}
 user_downloads = {}  # session_id -> list of files
+progress_timestamps = {}  # track when progress was last updated
+
+def cleanup_old_progress():
+    """Clean up progress data older than 10 minutes"""
+    import time
+    current_time = time.time()
+    old_keys = []
+    
+    for download_id, timestamp in progress_timestamps.items():
+        if current_time - timestamp > 600:  # 10 minutes
+            old_keys.append(download_id)
+    
+    for key in old_keys:
+        download_progress.pop(key, None)
+        progress_timestamps.pop(key, None)
+        logging.info(f"Cleaned up old progress data for download {key}")
+
+def update_progress(download_id, status_dict):
+    """Update progress with timestamp"""
+    import time
+    download_progress[download_id] = status_dict
+    progress_timestamps[download_id] = time.time()
 
 def convert_to_mp3(input_file, output_file):
     """Convert audio file to MP3 using pydub"""
@@ -197,10 +219,10 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 1: Processing download {download_id}: {url} for user {user_id}")
         
         # Update progress to show we're starting
-        download_progress[download_id] = {
+        update_progress(download_id, {
             'status': 'initializing',
             'message': 'Initializing download...'
-        }
+        })
         logging.info(f"STEP 2: Set initializing status for {download_id}")
         
         # Create user-specific downloads directory
@@ -530,8 +552,14 @@ def download_video(url, format_type, download_id, user_id):
 
 @app.route('/progress/<download_id>')
 def get_progress(download_id):
+    # Clean up old progress data periodically
+    cleanup_old_progress()
+    
     progress = download_progress.get(download_id, {'status': 'not_found'})
-    logging.info(f"Progress requested for {download_id}: {progress}")
+    
+    # Only log if it's not a repeated 'not_found' to reduce log spam
+    if progress['status'] != 'not_found':
+        logging.info(f"Progress requested for {download_id}: {progress}")
     
     response = jsonify(progress)
     # Add headers to prevent caching

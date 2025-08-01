@@ -93,6 +93,11 @@ function monitorProgress(downloadId) {
                 setTimeout(loadDownloads, 1000);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
+            } else if (progress.status === 'not_found') {
+                console.log('Download ID not found, stopping progress check');
+                document.getElementById('errorMessage').textContent = 'Download session expired. Please try again.';
+                document.getElementById('errorMessage').style.display = 'block';
+                resetForm();
             } else {
                 setTimeout(checkProgress, 1000);
             }
