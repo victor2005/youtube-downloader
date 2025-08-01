@@ -129,15 +129,19 @@ function formatFileSize(bytes) {
 
 async function loadDownloads() {
     try {
+        console.log('Loading downloads...');
         const response = await fetch('/downloads');
         const files = await response.json();
+        console.log('Downloads API response:', files);
         const downloadsList = document.getElementById('downloadsList');
         
         downloadsList.innerHTML = '';
         
         if (files.length === 0) {
+            console.log('No files found, showing empty message');
             downloadsList.innerHTML = '<li style="text-align: center; color: #666; padding: 20px;">No downloads yet</li>';
         } else {
+            console.log(`Displaying ${files.length} files:`, files.map(f => f.name));
             files.forEach(file => {
                 const li = document.createElement('li');
                 li.className = 'download-item';
