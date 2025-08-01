@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, session
+from flask_compress import Compress
 import yt_dlp
 import os
 import tempfile
@@ -19,6 +20,25 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Enable compression
+Compress(app)
+
+# Add cache headers for static content
+@app.after_request
+def after_request(response):
+    # Add cache headers for static files
+    if request.endpoint == 'static':
+        response.cache_control.max_age = 31536000  # 1 year
+    else:
+        response.cache_control.max_age = 300  # 5 minutes for dynamic content
+    
+    # Add security headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    return response
 
 # Store download progress and user files
 download_progress = {}
@@ -76,6 +96,11 @@ def index():
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy', 'service': 'youtube-downloader'})
+
+@app.route('/ping')
+def ping():
+    """Simple ping endpoint for uptime monitoring"""
+    return 'pong', 200
 
 @app.route('/download', methods=['POST'])
 def download():
