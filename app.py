@@ -7,6 +7,12 @@ import time
 from pathlib import Path
 import logging
 import uuid
+try:
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
+except ImportError:
+    PYDUB_AVAILABLE = False
+    logging.warning("pydub not available - audio conversion will be limited")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +23,27 @@ app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-product
 # Store download progress and user files
 download_progress = {}
 user_downloads = {}  # session_id -> list of files
+
+def convert_to_mp3(input_file, output_file):
+    """Convert audio file to MP3 using pydub"""
+    try:
+        if not PYDUB_AVAILABLE:
+            return False
+        
+        # Load the audio file
+        if input_file.suffix.lower() == '.webm':
+            audio = AudioSegment.from_file(str(input_file), format="webm")
+        elif input_file.suffix.lower() == '.m4a':
+            audio = AudioSegment.from_file(str(input_file), format="m4a")
+        else:
+            audio = AudioSegment.from_file(str(input_file))
+        
+        # Export as MP3
+        audio.export(str(output_file), format="mp3", bitrate="192k")
+        return True
+    except Exception as e:
+        logging.error(f"Audio conversion failed: {e}")
+        return False
 
 class ProgressHook:
     def __init__(self, download_id):
@@ -159,8 +186,8 @@ def download_video(url, format_type, download_id, user_id):
                     }],
                 }
             else:
-                # FFmpeg not working - inform user and download audio
-                logging.warning("FFmpeg not available - downloading high-quality audio (will be m4a/webm format)")
+                # FFmpeg not working - download audio for custom conversion
+                logging.info("FFmpeg not available - will use custom conversion to MP3")
                 ydl_opts = {
                     **base_opts,
                     'format': 'bestaudio/best',
@@ -177,6 +204,21 @@ def download_video(url, format_type, download_id, user_id):
             ydl.download([url])
             
         logging.info(f"Download completed, checking files in {downloads_dir}")
+        
+        # Post-process for MP3 conversion if needed
+        if format_type == 'mp3' and not ffmpeg_working and PYDUB_AVAILABLE:
+            logging.info("Starting custom MP3 conversion...")
+            for file_path in downloads_dir.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
+                    mp3_path = file_path.with_suffix('.mp3')
+                    logging.info(f"Converting {file_path.name} to {mp3_path.name}")
+                    
+                    if convert_to_mp3(file_path, mp3_path):
+                        # Conversion successful - remove original
+                        file_path.unlink()
+                        logging.info(f"Successfully converted to MP3: {mp3_path.name}")
+                    else:
+                        logging.warning(f"Conversion failed, keeping original: {file_path.name}")
         
         # Add completed file to user's download list
         if user_id not in user_downloads:

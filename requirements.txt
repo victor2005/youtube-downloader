@@ -1,4 +1,5 @@
 Flask==2.3.3
 yt-dlp
 gunicorn==21.2.0
-ffmpeg-python
+pydub
+mutagen
