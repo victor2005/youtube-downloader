@@ -192,6 +192,27 @@ def session_info():
         'session_keys': list(session.keys())
     })
 
+@app.route('/test-downloads')
+def test_downloads():
+    """Test endpoint to debug downloads without cache"""
+    user_id = session.get('user_id', 'no_session')
+    user_downloads_dir = Path('downloads') / user_id if user_id != 'no_session' else None
+    
+    files_on_disk = []
+    if user_downloads_dir and user_downloads_dir.exists():
+        files_on_disk = [{
+            'name': f.name,
+            'size': f.stat().st_size,
+            'path': str(f)
+        } for f in user_downloads_dir.iterdir() if f.is_file()]
+    
+    return jsonify({
+        'session_user_id': user_id,
+        'files_in_memory': user_downloads.get(user_id, []),
+        'files_on_disk': files_on_disk,
+        'directory_path': str(user_downloads_dir) if user_downloads_dir else 'no_session'
+    })
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -588,9 +609,12 @@ def list_downloads():
         logging.info(f"Downloads endpoint: Created new session with user_id: {session['user_id']}")
     
     user_id = session['user_id']
+    logging.info(f"========== DOWNLOADS ENDPOINT DEBUG ===========")
     logging.info(f"Downloads endpoint: Listing downloads for user_id: {user_id}")
     logging.info(f"Downloads endpoint: Available user_downloads keys: {list(user_downloads.keys())}")
     logging.info(f"Downloads endpoint: Files in memory for this user: {user_downloads.get(user_id, 'NOT_FOUND')}")
+    logging.info(f"Downloads endpoint: Request headers: {dict(request.headers)}")
+    logging.info(f"Downloads endpoint: Session data: {dict(session)}")
     
     # Get user's downloads from memory first
     if user_id in user_downloads:
@@ -601,9 +625,16 @@ def list_downloads():
     
     # Also check user's directory for any files, but filter out intermediate files
     user_downloads_dir = Path('downloads') / user_id
+    logging.info(f"Downloads endpoint: Checking directory: {user_downloads_dir}")
+    logging.info(f"Downloads endpoint: Directory exists: {user_downloads_dir.exists()}")
+    
     if user_downloads_dir.exists():
+        all_files_on_disk = list(user_downloads_dir.iterdir())
+        logging.info(f"Downloads endpoint: All files on disk: {[f.name for f in all_files_on_disk if f.is_file()]}")
+        
         for file_path in user_downloads_dir.iterdir():
             if file_path.is_file():
+                logging.info(f"Downloads endpoint: Processing file: {file_path.name}")
                 # Skip webm/m4a files if an MP3 version exists (they're intermediate files)
                 if file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
                     mp3_version = file_path.with_suffix('.mp3')
@@ -616,9 +647,13 @@ def list_downloads():
                     'size': file_path.stat().st_size,
                     'modified': file_path.stat().st_mtime
                 }
+                logging.info(f"Downloads endpoint: Adding file to list: {file_info}")
                 # Avoid duplicates
                 if not any(f['name'] == file_info['name'] for f in files):
                     files.append(file_info)
+                    logging.info(f"Downloads endpoint: File added successfully")
+                else:
+                    logging.info(f"Downloads endpoint: File already exists in list, skipping")
     
     # Sort by modification time (newest first)
     files.sort(key=lambda x: x['modified'], reverse=True)

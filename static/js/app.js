@@ -84,15 +84,24 @@ function monitorProgress(downloadId) {
                 progressFill.style.width = '90%';
                 setTimeout(checkProgress, 2000); // Check less frequently during conversion
             } else if (progress.status === 'finished') {
+                console.log('Download finished, updating UI and refreshing downloads list');
                 progressFill.style.width = '100%';
                 progressText.textContent = 'Download completed!';
                 document.getElementById('successMessage').textContent = 'Download completed successfully!';
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
                 // Immediately refresh the downloads list
+                console.log('Triggering immediate downloads list refresh');
                 loadDownloads();
-                // Also refresh after a short delay to ensure consistency
-                setTimeout(loadDownloads, 2000);
+                // Also refresh multiple times to ensure consistency
+                setTimeout(() => {
+                    console.log('Triggering delayed downloads list refresh (2s)');
+                    loadDownloads();
+                }, 2000);
+                setTimeout(() => {
+                    console.log('Triggering final downloads list refresh (5s)');
+                    loadDownloads();
+                }, 5000);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {
@@ -131,19 +140,20 @@ function formatFileSize(bytes) {
 
 async function loadDownloads() {
     try {
-        console.log('Loading downloads...');
-        const response = await fetch('/downloads');
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] Loading downloads...`);
+        const response = await fetch('/downloads?t=' + Date.now());
         const files = await response.json();
-        console.log('Downloads API response:', files);
+        console.log(`[${timestamp}] Downloads API response:`, files);
         const downloadsList = document.getElementById('downloadsList');
         
         downloadsList.innerHTML = '';
         
         if (files.length === 0) {
-            console.log('No files found, showing empty message');
+            console.log(`[${timestamp}] No files found, showing empty message`);
             downloadsList.innerHTML = '<li style="text-align: center; color: #666; padding: 20px;">No downloads yet</li>';
         } else {
-            console.log(`Displaying ${files.length} files:`, files.map(f => f.name));
+            console.log(`[${timestamp}] Displaying ${files.length} files:`, files.map(f => f.name));
             files.forEach(file => {
                 const li = document.createElement('li');
                 li.className = 'download-item';
