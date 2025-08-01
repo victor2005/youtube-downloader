@@ -51,8 +51,10 @@ function monitorProgress(downloadId) {
     
     const checkProgress = async () => {
         try {
-            const response = await fetch(`/progress/${downloadId}`);
+            const response = await fetch(`/progress/${downloadId}?t=${Date.now()}`);
             const progress = await response.json();
+            
+            console.log('Checking progress:', progress);
             
             if (progress.status === 'downloading') {
                 progressText.textContent = `Downloading... ${progress.percent} (${progress.speed})`;

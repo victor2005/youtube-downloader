@@ -508,7 +508,14 @@ def download_video(url, format_type, download_id, user_id):
 def get_progress(download_id):
     progress = download_progress.get(download_id, {'status': 'not_found'})
     logging.info(f"Progress requested for {download_id}: {progress}")
-    return jsonify(progress)
+    
+    response = jsonify(progress)
+    # Add headers to prevent caching
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    return response
 
 @app.route('/downloads')
 def list_downloads():
