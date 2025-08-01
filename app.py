@@ -113,6 +113,32 @@ def serve_sw():
     """Serve PropellerAds service worker file"""
     return send_file('sw.js', mimetype='application/javascript')
 
+@app.route('/test-ytdlp')
+def test_ytdlp():
+    """Test endpoint to check if yt-dlp is working"""
+    try:
+        import yt_dlp
+        # Test with a simple, known working URL
+        test_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # Short test video
+        
+        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            info = ydl.extract_info(test_url, download=False)
+            title = info.get('title', 'Unknown')
+            duration = info.get('duration', 'Unknown')
+            
+        return jsonify({
+            'status': 'success',
+            'yt_dlp_version': yt_dlp.version.__version__,
+            'test_title': title,
+            'test_duration': duration
+        })
+    except Exception as e:
+        logging.error(f"yt-dlp test failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -213,12 +239,18 @@ def download_video(url, format_type, download_id, user_id):
         base_opts = {
             'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
             'progress_hooks': [ProgressHook(download_id)],
-            'no_warnings': True,
+            'no_warnings': False,  # Enable warnings for debugging
             'extract_flat': False,
-            'socket_timeout': 10,
-            'retries': 2,
-            'fragment_retries': 2,
+            'socket_timeout': 15,
+            'retries': 1,  # Reduce retries to fail faster
+            'fragment_retries': 1,
             'ignoreerrors': False,
+            'verbose': True,  # Enable verbose output for debugging
+            'quiet': False,
+            # Add user agent to avoid blocking
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
         }
         
         if ffmpeg_working:
@@ -266,6 +298,19 @@ def download_video(url, format_type, download_id, user_id):
             nonlocal download_success, error_message
             try:
                 logging.info(f"Download worker starting for {download_id}")
+                
+                # First, test if we can extract info without downloading
+                try:
+                    logging.info(f"Testing URL extraction for {download_id}")
+                    with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as test_ydl:
+                        info = test_ydl.extract_info(url, download=False)
+                        logging.info(f"URL extraction successful for {download_id}: {info.get('title', 'Unknown')[:50]}")
+                except Exception as extract_error:
+                    logging.error(f"URL extraction failed for {download_id}: {extract_error}")
+                    raise Exception(f"Failed to extract video info: {extract_error}")
+                
+                # Now proceed with actual download
+                logging.info(f"Starting actual download for {download_id}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     logging.info(f"Calling yt-dlp download for {download_id}")
                     ydl.download([url])
@@ -283,13 +328,13 @@ def download_video(url, format_type, download_id, user_id):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
             try:
-                future.result(timeout=300)  # 5 minute timeout
+                future.result(timeout=60)  # 1 minute timeout for debugging
                 logging.info(f"Download thread completed for {download_id}, success: {download_success}")
             except concurrent.futures.TimeoutError:
-                logging.error(f"Download timed out after 5 minutes for {download_id}")
+                logging.error(f"Download timed out after 1 minute for {download_id}")
                 download_progress[download_id] = {
                     'status': 'error',
-                    'error': 'Download timed out after 5 minutes'
+                    'error': 'Download timed out after 1 minute (debugging mode)'
                 }
                 return
         
