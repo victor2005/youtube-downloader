@@ -336,16 +336,52 @@ def download_video(url, format_type, download_id, user_id):
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
-            try:
-                future.result(timeout=180)  # 3 minute timeout
-                logging.info(f"Download thread completed for {download_id}, success: {download_success}")
-            except concurrent.futures.TimeoutError:
-                logging.error(f"Download timed out after 3 minutes for {download_id}")
-                download_progress[download_id] = {
-                    'status': 'error',
-                    'error': 'Download timed out after 3 minutes'
-                }
-                return
+            
+            # Monitor progress with periodic updates
+            import time
+            start_time = time.time()
+            
+            while True:
+                try:
+                    # Check if download is complete every 3 seconds
+                    future.result(timeout=3)
+                    # Download completed successfully
+                    logging.info(f"Download thread completed for {download_id}, success: {download_success}")
+                    
+                    # Immediately update to show we're past the download phase
+                    download_progress[download_id] = {
+                        'status': 'downloading',
+                        'percent': '100%',
+                        'speed': 'Completed',
+                        'message': 'Download finished'
+                    }
+                    break
+                    
+                except concurrent.futures.TimeoutError:
+                    # Still downloading, update progress periodically
+                    elapsed = time.time() - start_time
+                    if elapsed > 180:  # 3 minute total timeout
+                        logging.error(f"Download timed out after 3 minutes for {download_id}")
+                        download_progress[download_id] = {
+                            'status': 'error',
+                            'error': 'Download timed out after 3 minutes'
+                        }
+                        return
+                    
+                    # Update progress based on elapsed time (simulation)
+                    if elapsed < 60:  # First minute: 0-70%
+                        percent = min(int((elapsed / 60) * 70), 70)
+                    else:  # After first minute: 70-95%
+                        percent = min(70 + int(((elapsed - 60) / 120) * 25), 95)
+                    
+                    download_progress[download_id] = {
+                        'status': 'downloading',
+                        'percent': f'{percent}%',
+                        'speed': 'Downloading...',
+                        'message': 'Download in progress'
+                    }
+                    continue
+            
         
         if error_message:
             download_progress[download_id] = {
