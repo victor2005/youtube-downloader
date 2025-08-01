@@ -293,24 +293,26 @@ def download_video(url, format_type, download_id, user_id):
                     if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
                         user_downloads[user_id].append(file_info)
             
-            # Update progress to show completion
-            download_progress[download_id] = {
-                'status': 'finished',
-                'message': 'MP3 conversion completed!'
-            }
-        else:
-            # For non-MP3 downloads or when FFmpeg is working, add all files normally
-            for file_path in downloads_dir.iterdir():
-                if file_path.is_file():
-                    file_info = {
-                        'name': file_path.name,
-                        'size': file_path.stat().st_size,
-                        'modified': file_path.stat().st_mtime,
-                        'user_id': user_id
-                    }
-                    # Avoid duplicates
-                    if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
-                        user_downloads[user_id].append(file_info)
+                # Update progress to show completion
+                download_progress[download_id] = {
+                    'status': 'finished',
+                    'message': 'MP3 conversion completed!'
+                }
+            else:
+                # For non-MP3 downloads or when FFmpeg is working, add all files normally
+                for file_path in downloads_dir.iterdir():
+                    if file_path.is_file():
+                        file_info = {
+                            'name': file_path.name,
+                            'size': file_path.stat().st_size,
+                            'modified': file_path.stat().st_mtime,
+                            'user_id': user_id
+                        }
+                        # Avoid duplicates
+                        if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
+                            user_downloads[user_id].append(file_info)
+        except Exception as conv_error:
+            logging.error(f"Error in post-processing: {conv_error}")
             
         logging.info(f"Download {download_id} completed successfully")
             
