@@ -70,19 +70,24 @@ class ProgressHook:
         self.download_id = download_id
     
     def __call__(self, d):
-        if d['status'] == 'downloading':
-            percent = d.get('_percent_str', 'N/A')
-            speed = d.get('_speed_str', 'N/A')
-            download_progress[self.download_id] = {
-                'status': 'downloading',
-                'percent': percent,
-                'speed': speed
-            }
-        elif d['status'] == 'finished':
-            download_progress[self.download_id] = {
-                'status': 'finished',
-                'filename': d['filename']
-            }
+        try:
+            if d['status'] == 'downloading':
+                percent = d.get('_percent_str', 'N/A')
+                speed = d.get('_speed_str', 'N/A')
+                download_progress[self.download_id] = {
+                    'status': 'downloading',
+                    'percent': percent,
+                    'speed': speed
+                }
+                logging.info(f"Progress {self.download_id}: {percent} at {speed}")
+            elif d['status'] == 'finished':
+                download_progress[self.download_id] = {
+                    'status': 'finished',
+                    'filename': d.get('filename', 'unknown')
+                }
+                logging.info(f"Download {self.download_id} finished: {d.get('filename', 'unknown')}")
+        except Exception as e:
+            logging.error(f"Progress hook error for {self.download_id}: {e}")
 
 @app.route('/')
 def index():
@@ -138,6 +143,12 @@ def download_video(url, format_type, download_id, user_id):
     try:
         logging.info(f"Processing download {download_id}: {url} for user {user_id}")
         
+        # Update progress to show we're starting
+        download_progress[download_id] = {
+            'status': 'initializing',
+            'message': 'Initializing download...'
+        }
+        
         # Create user-specific downloads directory
         downloads_dir = Path('downloads') / user_id
         downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -186,12 +197,20 @@ def download_video(url, format_type, download_id, user_id):
             logging.warning("FFmpeg not found in any location")
         logging.info(f"Download format requested: {format_type}")
         
+        # Update progress to show we're preparing
+        download_progress[download_id] = {
+            'status': 'preparing',
+            'message': 'Preparing download...'
+        }
+        
         # Configure yt-dlp options with better error handling
         base_opts = {
             'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
             'progress_hooks': [ProgressHook(download_id)],
             'no_warnings': False,
             'extract_flat': False,
+            'socket_timeout': 30,
+            'retries': 3,
         }
         
         if ffmpeg_working:
@@ -234,15 +253,16 @@ def download_video(url, format_type, download_id, user_id):
         if user_id not in user_downloads:
             user_downloads[user_id] = []
         
-        # Post-process for MP3 conversion if needed
-        if format_type == 'mp3' and not ffmpeg_working and PYDUB_AVAILABLE:
-            logging.info("Starting custom MP3 conversion...")
-            # Update progress to show conversion
-            download_progress[download_id] = {
-                'status': 'converting',
-                'message': 'Converting to MP3...'
-            }
-            converted_files = []
+        try:
+            # Post-process for MP3 conversion if needed
+            if format_type == 'mp3' and not ffmpeg_working and PYDUB_AVAILABLE:
+                logging.info("Starting custom MP3 conversion...")
+                # Update progress to show conversion
+                download_progress[download_id] = {
+                    'status': 'converting',
+                    'message': 'Converting to MP3...'
+                }
+                converted_files = []
             
             for file_path in downloads_dir.iterdir():
                 if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
