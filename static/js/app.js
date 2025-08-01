@@ -93,7 +93,7 @@ function monitorProgress(downloadId) {
                 
                 // Check if Safari - only add delay for Safari
                 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                const initialDelay = isSafari ? 1500 : 0; // 1.5 second delay for Safari only
+                const initialDelay = isSafari ? 1500 : 1000; // 1.5 second delay for Safari, 1s for others
                 
                 // Refresh downloads list with Safari-specific delay
                 setTimeout(() => {
