@@ -5,6 +5,10 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
@@ -34,53 +38,74 @@ class ProgressHook:
 def index():
     return render_template('index.html')
 
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy', 'service': 'youtube-downloader'})
+
 @app.route('/download', methods=['POST'])
 def download():
-    data = request.json
-    url = data.get('url')
-    format_type = data.get('format', 'video')  # 'video' or 'mp3'
-    
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
-    
-    # Generate unique download ID
-    download_id = str(int(time.time() * 1000))
-    
-    # Start download in background thread
-    thread = threading.Thread(target=download_video, args=(url, format_type, download_id))
-    thread.start()
-    
-    return jsonify({'download_id': download_id})
+    try:
+        data = request.json
+        url = data.get('url')
+        format_type = data.get('format', 'video')  # 'video' or 'mp3'
+        
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+        
+        # Generate unique download ID
+        download_id = str(int(time.time() * 1000))
+        
+        logging.info(f"Starting download for URL: {url}, format: {format_type}")
+        
+        # Start download in background thread
+        thread = threading.Thread(target=download_video, args=(url, format_type, download_id))
+        thread.daemon = True  # Make thread daemon so it doesn't block shutdown
+        thread.start()
+        
+        return jsonify({'download_id': download_id})
+    except Exception as e:
+        logging.error(f"Error in download endpoint: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 def download_video(url, format_type, download_id):
     try:
+        logging.info(f"Processing download {download_id}: {url}")
+        
         # Create downloads directory
         downloads_dir = Path('downloads')
         downloads_dir.mkdir(exist_ok=True)
         
-        # Configure yt-dlp options
+        # Configure yt-dlp options with better error handling
+        base_opts = {
+            'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
+            'progress_hooks': [ProgressHook(download_id)],
+            'no_warnings': False,
+            'extract_flat': False,
+        }
+        
         if format_type == 'mp3':
             ydl_opts = {
+                **base_opts,
                 'format': 'bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
                 }],
-                'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
-                'progress_hooks': [ProgressHook(download_id)],
             }
         else:
             ydl_opts = {
-                'format': 'best[height<=720]/best',
-                'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
-                'progress_hooks': [ProgressHook(download_id)],
+                **base_opts,
+                'format': 'best[height<=720]/best[height<=480]/best',
             }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
             
+        logging.info(f"Download {download_id} completed successfully")
+            
     except Exception as e:
+        logging.error(f"Download {download_id} failed: {str(e)}")
         download_progress[download_id] = {
             'status': 'error',
             'error': str(e)
