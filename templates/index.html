@@ -218,6 +218,44 @@
             margin-top: 15px;
             display: none;
         }
+
+        /* Ad Styling */
+        .ad-banner {
+            width: 100%;
+            height: 90px;
+            margin: 20px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+        }
+
+        .ad-rectangle {
+            width: 300px;
+            height: 250px;
+            margin: 20px auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+        }
+
+        .ad-placeholder {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .ad-rectangle {
+                width: 250px;
+                height: 200px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -228,6 +266,12 @@
         </div>
         
         <div class="content">
+            <!-- Top Banner Ad -->
+            <div class="ad-banner" id="topBannerAd">
+                <!-- Ad code will go here -->
+                <div class="ad-placeholder">Advertisement</div>
+            </div>
+            
             <form id="downloadForm">
                 <div class="form-group">
                     <label for="url">YouTube URL:</label>
@@ -266,11 +310,21 @@
                 <div id="progressText">Preparing download...</div>
             </div>
             
+            <!-- Side Rectangle Ad -->
+            <div class="ad-rectangle" id="sideRectangleAd">
+                <div class="ad-placeholder">Ad</div>
+            </div>
+            
             <div class="downloads-section">
                 <h3>Downloaded Files</h3>
                 <ul class="downloads-list" id="downloadsList">
                     <!-- Downloaded files will appear here -->
                 </ul>
+            </div>
+            
+            <!-- Bottom Banner Ad -->
+            <div class="ad-banner" id="bottomBannerAd">
+                <div class="ad-placeholder">Advertisement</div>
             </div>
         </div>
     </div>
