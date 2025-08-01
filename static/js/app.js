@@ -90,39 +90,18 @@ function monitorProgress(downloadId) {
                 document.getElementById('successMessage').textContent = 'File converted and ready for download!';
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
-                
-                // Detect Safari for special handling
-                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                
                 // Immediately refresh the downloads list
                 console.log('Triggering immediate downloads list refresh');
                 loadDownloads();
-                
-                // Safari needs more aggressive refreshing due to caching behavior
-                if (isSafari) {
-                    setTimeout(() => {
-                        console.log('Safari: Triggering downloads list refresh (1s)');
-                        loadDownloads();
-                    }, 1000);
-                    setTimeout(() => {
-                        console.log('Safari: Triggering downloads list refresh (3s)');
-                        loadDownloads();
-                    }, 3000);
-                    setTimeout(() => {
-                        console.log('Safari: Triggering downloads list refresh (6s)');
-                        loadDownloads();
-                    }, 6000);
-                } else {
-                    // Chrome/Brave - less aggressive refreshing
-                    setTimeout(() => {
-                        console.log('Triggering delayed downloads list refresh (2s)');
-                        loadDownloads();
-                    }, 2000);
-                    setTimeout(() => {
-                        console.log('Triggering final downloads list refresh (5s)');
-                        loadDownloads();
-                    }, 5000);
-                }
+                // Also refresh multiple times to ensure consistency
+                setTimeout(() => {
+                    console.log('Triggering delayed downloads list refresh (2s)');
+                    loadDownloads();
+                }, 2000);
+                setTimeout(() => {
+                    console.log('Triggering final downloads list refresh (5s)');
+                    loadDownloads();
+                }, 5000);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {
@@ -163,18 +142,7 @@ async function loadDownloads() {
     try {
         const timestamp = new Date().toISOString();
         console.log(`[${timestamp}] Loading downloads...`);
-        
-        // More aggressive cache-busting for Safari
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        const cacheBuster = isSafari ? `t=${Date.now()}&r=${Math.random()}` : `t=${Date.now()}`;
-        
-        const response = await fetch(`/downloads?${cacheBuster}`, {
-            cache: 'no-cache',
-            headers: {
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
-        });
+        const response = await fetch('/downloads?t=' + Date.now());
         const files = await response.json();
         console.log(`[${timestamp}] Downloads API response:`, files);
         const downloadsList = document.getElementById('downloadsList');
