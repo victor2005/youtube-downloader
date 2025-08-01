@@ -1,0 +1,108 @@
+<!-- Crypto Donation Widget -->
+<!-- Add this to your main page where you want donations -->
+
+<div class="crypto-donations">
+    <h4>💖 Support This Service</h4>
+    <p>Help keep this service free and ad-light!</p>
+    
+    <div class="crypto-options">
+        <div class="crypto-item">
+            <strong>Bitcoin (BTC)</strong>
+            <div class="crypto-address" onclick="copyToClipboard('btc-address')">
+                <span id="btc-address">1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa</span>
+                <button class="copy-btn">📋 Copy</button>
+            </div>
+        </div>
+        
+        <div class="crypto-item">
+            <strong>Ethereum (ETH)</strong>
+            <div class="crypto-address" onclick="copyToClipboard('eth-address')">
+                <span id="eth-address">0x742d35Cc6634C0532925a3b8D1e9E6E2b3dD2E05</span>
+                <button class="copy-btn">📋 Copy</button>
+            </div>
+        </div>
+        
+        <div class="crypto-item">
+            <strong>Dogecoin (DOGE)</strong>
+            <div class="crypto-address" onclick="copyToClipboard('doge-address')">
+                <span id="doge-address">DH5yaieqoZN36fDVciNyRueRGvGLR3mr7L</span>
+                <button class="copy-btn">📋 Copy</button>
+            </div>
+        </div>
+    </div>
+    
+    <small>Any amount helps keep the servers running! 🚀</small>
+</div>
+
+<style>
+.crypto-donations {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+.crypto-donations h4 {
+    margin-bottom: 10px;
+    color: #495057;
+}
+
+.crypto-item {
+    margin: 15px 0;
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.crypto-address {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 5px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.copy-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 10px;
+}
+
+.copy-btn:hover {
+    background: #0056b3;
+}
+
+@media (max-width: 768px) {
+    .crypto-address {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .crypto-address span {
+        word-break: break-all;
+    }
+}
+</style>
+
+<script>
+function copyToClipboard(elementId) {
+    const text = document.getElementById(elementId).textContent;
+    navigator.clipboard.writeText(text).then(function() {
+        alert('Address copied to clipboard!');
+    });
+}
+</script>
+
+<!-- Replace the addresses above with your actual wallet addresses -->
