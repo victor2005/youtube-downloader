@@ -142,10 +142,20 @@ def test_ytdlp():
 @app.route('/debug-status')
 def debug_status():
     """Debug endpoint to check current status"""
+    current_user_id = session.get('user_id', 'no_session')
+    user_downloads_dir = Path('downloads') / current_user_id if current_user_id != 'no_session' else None
+    
+    files_on_disk = []
+    if user_downloads_dir and user_downloads_dir.exists():
+        files_on_disk = [f.name for f in user_downloads_dir.iterdir() if f.is_file()]
+    
     return jsonify({
         'active_downloads': len(download_progress),
         'download_progress': download_progress,
-        'user_downloads_count': len(user_downloads)
+        'user_downloads_count': len(user_downloads),
+        'current_user_id': current_user_id,
+        'user_downloads_in_memory': user_downloads.get(current_user_id, []),
+        'files_on_disk': files_on_disk
     })
 
 @app.route('/download', methods=['POST'])
@@ -167,8 +177,10 @@ def download():
         if 'user_id' not in session:
             session['user_id'] = str(uuid.uuid4())
             user_downloads[session['user_id']] = []
+            logging.info(f"Download endpoint: Created new session with user_id: {session['user_id']}")
         
         user_id = session['user_id']
+        logging.info(f"Download endpoint: Using user_id: {user_id}")
         
         # Start download in background thread
         thread = threading.Thread(target=download_video, args=(url, format_type, download_id, user_id))
@@ -535,8 +547,10 @@ def list_downloads():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
         user_downloads[session['user_id']] = []
+        logging.info(f"Created new session with user_id: {session['user_id']}")
     
     user_id = session['user_id']
+    logging.info(f"Listing downloads for user_id: {user_id}")
     
     # Get user's downloads from memory first
     if user_id in user_downloads:
