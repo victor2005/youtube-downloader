@@ -377,5 +377,10 @@ def download_file(filename):
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('PORT', 8080))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    try:
+        port = int(os.environ.get('PORT', 8080))
+        logging.info(f"Starting Flask app on port {port}")
+        app.run(debug=False, host='0.0.0.0', port=port)
+    except Exception as e:
+        logging.error(f"Failed to start Flask app: {e}")
+        raise
