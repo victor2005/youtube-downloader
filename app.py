@@ -419,12 +419,18 @@ def download_video(url, format_type, download_id, user_id):
         
         logging.info(f"Download completed, checking files in {downloads_dir}")
         
+        # List all files in the directory for debugging
+        all_files = list(downloads_dir.iterdir()) if downloads_dir.exists() else []
+        logging.info(f"Files found in directory: {[f.name for f in all_files if f.is_file()]}")
+        
         # Initialize user downloads if needed
         if user_id not in user_downloads:
             user_downloads[user_id] = []
+            logging.info(f"Created new user downloads list for {user_id}")
         
         # Initialize files list to track what gets added to user downloads
         final_files = []
+        logging.info(f"Starting file processing for format_type: {format_type}, ffmpeg_working: {ffmpeg_working}, PYDUB_AVAILABLE: {PYDUB_AVAILABLE}")
         
         try:
             # Post-process for MP3 conversion if needed
@@ -469,6 +475,7 @@ def download_video(url, format_type, download_id, user_id):
                 }
             
             # Add final files to user's list
+            logging.info(f"Processing {len(final_files)} final files for user downloads")
             for file_path in final_files:
                 if file_path.exists():
                     file_info = {
@@ -480,6 +487,11 @@ def download_video(url, format_type, download_id, user_id):
                     # Avoid duplicates
                     if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
                         user_downloads[user_id].append(file_info)
+                        logging.info(f"Added file to user downloads: {file_path.name}")
+                    else:
+                        logging.info(f"File already exists in user downloads: {file_path.name}")
+                else:
+                    logging.warning(f"File does not exist: {file_path}")
                         
         except Exception as conv_error:
             logging.error(f"Error in post-processing: {conv_error}")
@@ -556,6 +568,8 @@ def list_downloads():
     
     # Sort by modification time (newest first)
     files.sort(key=lambda x: x['modified'], reverse=True)
+    
+    logging.info(f"Returning {len(files)} files for user {user_id}: {[f['name'] for f in files]}")
     return jsonify(files)
 
 @app.route('/download-file/<filename>')
