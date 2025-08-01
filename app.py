@@ -101,11 +101,13 @@ class ProgressHook:
                 }
                 logging.info(f"Progress {self.download_id}: {percent} at {speed}")
             elif d['status'] == 'finished':
+                # Don't set 'finished' yet - let the main download function handle final status
+                # after post-processing (MP3 conversion) is complete
                 download_progress[self.download_id] = {
-                    'status': 'finished',
-                    'filename': d.get('filename', 'unknown')
+                    'status': 'processing',
+                    'message': 'Download completed, processing files...'
                 }
-                logging.info(f"Download {self.download_id} finished: {d.get('filename', 'unknown')}")
+                logging.info(f"Download {self.download_id} finished downloading: {d.get('filename', 'unknown')}, moving to processing")
             else:
                 # Log other statuses for debugging
                 logging.info(f"Progress {self.download_id}: status={d.get('status')}, data={d}")
@@ -429,12 +431,10 @@ def download_video(url, format_type, download_id, user_id):
                     # Download completed successfully
                     logging.info(f"Download thread completed for {download_id}, success: {download_success}")
                     
-                    # Immediately update to show we're past the download phase
+                    # Update to show we're moving to processing phase
                     download_progress[download_id] = {
-                        'status': 'downloading',
-                        'percent': '100%',
-                        'speed': 'Completed',
-                        'message': 'Download finished'
+                        'status': 'processing',
+                        'message': 'Download completed, processing files...'
                     }
                     break
                     
