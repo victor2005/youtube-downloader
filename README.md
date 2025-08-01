@@ -2,6 +2,10 @@
 
 A simple web application that allows you to download YouTube videos or extract MP3 audio using yt-dlp.
 
+![YouTube Downloader](https://img.shields.io/badge/Python-3.7+-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-2.3+-green.svg)
+![yt-dlp](https://img.shields.io/badge/yt--dlp-latest-red.svg)
+
 ## Features
 
 - 🎥 Download YouTube videos in MP4 format
