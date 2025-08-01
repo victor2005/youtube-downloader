@@ -230,36 +230,65 @@ def download_video(url, format_type, download_id, user_id):
             
         logging.info(f"Download completed, checking files in {downloads_dir}")
         
+        # Initialize user downloads if needed
+        if user_id not in user_downloads:
+            user_downloads[user_id] = []
+        
         # Post-process for MP3 conversion if needed
         if format_type == 'mp3' and not ffmpeg_working and PYDUB_AVAILABLE:
             logging.info("Starting custom MP3 conversion...")
+            # Update progress to show conversion
+            download_progress[download_id] = {
+                'status': 'converting',
+                'message': 'Converting to MP3...'
+            }
+            converted_files = []
+            
             for file_path in downloads_dir.iterdir():
                 if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
                     mp3_path = file_path.with_suffix('.mp3')
                     logging.info(f"Converting {file_path.name} to {mp3_path.name}")
                     
                     if convert_to_mp3(file_path, mp3_path):
-                        # Conversion successful - remove original
+                        # Conversion successful - remove original and track MP3
                         file_path.unlink()
                         logging.info(f"Successfully converted to MP3: {mp3_path.name}")
+                        converted_files.append(mp3_path)
                     else:
                         logging.warning(f"Conversion failed, keeping original: {file_path.name}")
-        
-        # Add completed file to user's download list
-        if user_id not in user_downloads:
-            user_downloads[user_id] = []
+                        converted_files.append(file_path)
             
-        # Find the downloaded file and add to user's list
-        for file_path in downloads_dir.iterdir():
-            if file_path.is_file():
-                file_info = {
-                    'name': file_path.name,
-                    'size': file_path.stat().st_size,
-                    'modified': file_path.stat().st_mtime,
-                    'user_id': user_id
-                }
-                if file_info not in user_downloads[user_id]:
-                    user_downloads[user_id].append(file_info)
+            # Add only the final converted files to user's list
+            for file_path in converted_files:
+                if file_path.exists():
+                    file_info = {
+                        'name': file_path.name,
+                        'size': file_path.stat().st_size,
+                        'modified': file_path.stat().st_mtime,
+                        'user_id': user_id
+                    }
+                    # Avoid duplicates
+                    if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
+                        user_downloads[user_id].append(file_info)
+            
+            # Update progress to show completion
+            download_progress[download_id] = {
+                'status': 'finished',
+                'message': 'MP3 conversion completed!'
+            }
+        else:
+            # For non-MP3 downloads or when FFmpeg is working, add all files normally
+            for file_path in downloads_dir.iterdir():
+                if file_path.is_file():
+                    file_info = {
+                        'name': file_path.name,
+                        'size': file_path.stat().st_size,
+                        'modified': file_path.stat().st_mtime,
+                        'user_id': user_id
+                    }
+                    # Avoid duplicates
+                    if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
+                        user_downloads[user_id].append(file_info)
             
         logging.info(f"Download {download_id} completed successfully")
             

@@ -60,6 +60,10 @@ function monitorProgress(downloadId) {
                     progressFill.style.width = percentMatch[1] + '%';
                 }
                 setTimeout(checkProgress, 1000);
+            } else if (progress.status === 'converting') {
+                progressText.textContent = progress.message || 'Converting to MP3...';
+                progressFill.style.width = '90%';
+                setTimeout(checkProgress, 2000); // Check less frequently during conversion
             } else if (progress.status === 'finished') {
                 progressFill.style.width = '100%';
                 progressText.textContent = 'Download completed!';
