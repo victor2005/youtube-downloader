@@ -276,10 +276,10 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 5: Download format requested: {format_type}")
         
         # Update progress to show we're preparing
-        download_progress[download_id] = {
+        update_progress(download_id, {
             'status': 'preparing',
             'message': 'Preparing download...'
-        }
+        })
         logging.info(f"STEP 6: Set preparing status for {download_id}")
         
         # Configure yt-dlp options with better error handling
@@ -332,10 +332,10 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 7: Starting yt-dlp download with options: {ydl_opts}")
         
         # Update progress to show download starting
-        download_progress[download_id] = {
+        update_progress(download_id, {
             'status': 'starting',
             'message': 'Starting yt-dlp download...'
-        }
+        })
         logging.info(f"STEP 8: Set starting status for {download_id}")
         
         logging.info(f"STEP 9: About to start download thread for {download_id}")
@@ -375,12 +375,12 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"Starting download thread for {download_id}")
         
         # Update progress to show we're actively downloading
-        download_progress[download_id] = {
+        update_progress(download_id, {
             'status': 'downloading',
             'percent': '0%',
             'speed': 'Starting download...',
             'message': 'Download in progress'
-        }
+        })
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
