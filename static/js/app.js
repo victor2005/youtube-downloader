@@ -22,6 +22,7 @@ document.getElementById('downloadForm').addEventListener('submit', async (e) => 
     downloadBtn.disabled = true;
     downloadBtn.textContent = 'Starting Download...';
     progressSection.style.display = 'block';
+    startAutoRefresh(); // Start auto-refreshing the download list
     
     try {
         const response = await fetch('/download', {
@@ -60,6 +61,14 @@ function monitorProgress(downloadId) {
                     progressFill.style.width = percentMatch[1] + '%';
                 }
                 setTimeout(checkProgress, 1000);
+            } else if (progress.status === 'initializing') {
+                progressText.textContent = 'Initializing download...';
+                progressFill.style.width = '10%';
+                setTimeout(checkProgress, 1000);
+            } else if (progress.status === 'preparing') {
+                progressText.textContent = 'Preparing download...';
+                progressFill.style.width = '20%';
+                setTimeout(checkProgress, 1000);
             } else if (progress.status === 'converting') {
                 progressText.textContent = progress.message || 'Converting to MP3...';
                 progressFill.style.width = '90%';
@@ -70,7 +79,8 @@ function monitorProgress(downloadId) {
                 document.getElementById('successMessage').textContent = 'Download completed successfully!';
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
-                loadDownloads();
+                // Refresh download list after a short delay to ensure file is processed
+                setTimeout(loadDownloads, 1000);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
             } else {
@@ -91,6 +101,7 @@ function resetForm() {
     document.getElementById('downloadBtn').textContent = 'Start Download';
     document.getElementById('progressSection').style.display = 'none';
     document.getElementById('progressFill').style.width = '0%';
+    stopAutoRefresh(); // Stop auto-refreshing when download is done
 }
 
 function formatFileSize(bytes) {
@@ -109,20 +120,39 @@ async function loadDownloads() {
         
         downloadsList.innerHTML = '';
         
-        files.forEach(file => {
-            const li = document.createElement('li');
-            li.className = 'download-item';
-            li.innerHTML = `
-                <div class="download-item-info">
-                    <div class="download-item-name">${file.name}</div>
-                    <div class="download-item-size">${formatFileSize(file.size)}</div>
-                </div>
-                <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link">Download</a>
-            `;
-            downloadsList.appendChild(li);
-        });
+        if (files.length === 0) {
+            downloadsList.innerHTML = '<li style="text-align: center; color: #666; padding: 20px;">No downloads yet</li>';
+        } else {
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.className = 'download-item';
+                li.innerHTML = `
+                    <div class="download-item-info">
+                        <div class="download-item-name">${file.name}</div>
+                        <div class="download-item-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link">Download</a>
+                `;
+                downloadsList.appendChild(li);
+            });
+        }
     } catch (error) {
         console.error('Failed to load downloads:', error);
+    }
+}
+
+// Auto-refresh downloads list every 5 seconds when there's an active download
+let autoRefreshInterval = null;
+
+function startAutoRefresh() {
+    if (autoRefreshInterval) return; // Already running
+    autoRefreshInterval = setInterval(loadDownloads, 5000);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
     }
 }
 

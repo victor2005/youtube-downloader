@@ -263,20 +263,21 @@ def download_video(url, format_type, download_id, user_id):
                     'message': 'Converting to MP3...'
                 }
                 converted_files = []
-            
-            for file_path in downloads_dir.iterdir():
-                if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
-                    mp3_path = file_path.with_suffix('.mp3')
-                    logging.info(f"Converting {file_path.name} to {mp3_path.name}")
-                    
-                    if convert_to_mp3(file_path, mp3_path):
-                        # Conversion successful - remove original and track MP3
-                        file_path.unlink()
-                        logging.info(f"Successfully converted to MP3: {mp3_path.name}")
-                        converted_files.append(mp3_path)
-                    else:
-                        logging.warning(f"Conversion failed, keeping original: {file_path.name}")
-                        converted_files.append(file_path)
+                
+                # Process audio files for conversion (don't add to user list yet)
+                for file_path in downloads_dir.iterdir():
+                    if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
+                        mp3_path = file_path.with_suffix('.mp3')
+                        logging.info(f"Converting {file_path.name} to {mp3_path.name}")
+                        
+                        if convert_to_mp3(file_path, mp3_path):
+                            # Conversion successful - remove original and track MP3
+                            file_path.unlink()
+                            logging.info(f"Successfully converted to MP3: {mp3_path.name}")
+                            converted_files.append(mp3_path)
+                        else:
+                            logging.warning(f"Conversion failed, keeping original: {file_path.name}")
+                            converted_files.append(file_path)
             
             # Add only the final converted files to user's list
             for file_path in converted_files:
