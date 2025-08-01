@@ -90,6 +90,35 @@ def download_video(url, format_type, download_id, user_id):
         downloads_dir = Path('downloads') / user_id
         downloads_dir.mkdir(parents=True, exist_ok=True)
         
+        # Find FFmpeg location
+        ffmpeg_location = None
+        
+        # Try to find ffmpeg in PATH first
+        import shutil
+        ffmpeg_location = shutil.which('ffmpeg')
+        
+        if not ffmpeg_location:
+            # Fallback to common paths
+            possible_paths = [
+                '/usr/bin/ffmpeg', 
+                '/usr/local/bin/ffmpeg', 
+                '/opt/homebrew/bin/ffmpeg',
+                '/nix/store/*/bin/ffmpeg'  # Nix store path pattern
+            ]
+            for path in possible_paths:
+                if '*' in path:
+                    # Handle Nix store pattern
+                    import glob
+                    matches = glob.glob(path)
+                    if matches:
+                        ffmpeg_location = matches[0]
+                        break
+                elif os.path.exists(path):
+                    ffmpeg_location = path
+                    break
+        
+        logging.info(f"FFmpeg location: {ffmpeg_location}")
+        
         # Configure yt-dlp options with better error handling
         base_opts = {
             'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
@@ -98,16 +127,28 @@ def download_video(url, format_type, download_id, user_id):
             'extract_flat': False,
         }
         
+        if ffmpeg_location:
+            base_opts['ffmpeg_location'] = ffmpeg_location
+        
         if format_type == 'mp3':
-            ydl_opts = {
-                **base_opts,
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-            }
+            if ffmpeg_location:
+                # FFmpeg available - convert to MP3
+                ydl_opts = {
+                    **base_opts,
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                }
+            else:
+                # FFmpeg not available - download best audio format
+                logging.warning("FFmpeg not found, downloading audio in original format")
+                ydl_opts = {
+                    **base_opts,
+                    'format': 'bestaudio/best',
+                }
         else:
             ydl_opts = {
                 **base_opts,
