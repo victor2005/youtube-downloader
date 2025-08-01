@@ -90,18 +90,26 @@ function monitorProgress(downloadId) {
                 document.getElementById('successMessage').textContent = 'File converted and ready for download!';
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
-                // Immediately refresh the downloads list
-                console.log('Triggering immediate downloads list refresh');
-                loadDownloads();
-                // Also refresh multiple times to ensure consistency
+                
+                // Check if Safari - only add delay for Safari
+                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                const initialDelay = isSafari ? 1500 : 0; // 1.5 second delay for Safari only
+                
+                // Refresh downloads list with Safari-specific delay
+                setTimeout(() => {
+                    console.log('Triggering downloads list refresh');
+                    loadDownloads();
+                }, initialDelay);
+                
+                // Follow-up refreshes for both browsers
                 setTimeout(() => {
                     console.log('Triggering delayed downloads list refresh (2s)');
                     loadDownloads();
-                }, 2000);
+                }, 2000 + initialDelay);
                 setTimeout(() => {
                     console.log('Triggering final downloads list refresh (5s)');
                     loadDownloads();
-                }, 5000);
+                }, 5000 + initialDelay);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {
