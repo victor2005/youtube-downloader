@@ -107,6 +107,11 @@ def ping():
     """Simple ping endpoint for uptime monitoring"""
     return 'pong', 200
 
+@app.route('/sw.js')
+def serve_sw():
+    """Serve PropellerAds service worker file"""
+    return send_file('sw.js', mimetype='application/javascript')
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
