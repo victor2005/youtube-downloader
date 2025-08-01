@@ -80,12 +80,15 @@ function monitorProgress(downloadId) {
                 progressFill.style.width = '85%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'converting') {
-                progressText.textContent = progress.message || 'Converting to MP3...';
+                progressText.textContent = progress.message || 'Converting to MP3... (This may take a moment)';
                 progressFill.style.width = '90%';
+                // Show a pulsing animation during conversion
+                progressFill.style.animation = 'pulse 2s infinite';
                 setTimeout(checkProgress, 2000); // Check less frequently during conversion
             } else if (progress.status === 'finished') {
                 console.log('Download finished, updating UI and refreshing downloads list');
                 progressFill.style.width = '100%';
+                progressFill.style.animation = 'none'; // Clear any animation
                 progressText.textContent = 'Download completed!';
                 document.getElementById('successMessage').textContent = 'Download completed successfully!';
                 document.getElementById('successMessage').style.display = 'block';
@@ -126,7 +129,9 @@ function resetForm() {
     document.getElementById('downloadBtn').disabled = false;
     document.getElementById('downloadBtn').textContent = 'Start Download';
     document.getElementById('progressSection').style.display = 'none';
-    document.getElementById('progressFill').style.width = '0%';
+    const progressFill = document.getElementById('progressFill');
+    progressFill.style.width = '0%';
+    progressFill.style.animation = 'none'; // Clear any animation
     stopAutoRefresh(); // Stop auto-refreshing when download is done
 }
 
