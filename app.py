@@ -309,26 +309,12 @@ def download_video(url, format_type, download_id, user_id):
                     logging.error(f"URL extraction failed for {download_id}: {extract_error}")
                     raise Exception(f"Failed to extract video info: {extract_error}")
                 
-                # Update progress to show download starting
-                download_progress[download_id] = {
-                    'status': 'downloading',
-                    'percent': '0%',
-                    'speed': 'Initializing...',
-                    'message': 'Download started'
-                }
-                
                 # Now proceed with actual download
                 logging.info(f"Starting actual download for {download_id}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     logging.info(f"Calling yt-dlp download for {download_id}")
                     ydl.download([url])
                     logging.info(f"yt-dlp download completed for {download_id}")
-                
-                # Manually update progress to finished if hook didn't catch it
-                download_progress[download_id] = {
-                    'status': 'processing',
-                    'message': 'Download completed, processing files...'
-                }
                 
                 download_success = True
             except Exception as e:
@@ -339,6 +325,14 @@ def download_video(url, format_type, download_id, user_id):
         import concurrent.futures
         
         logging.info(f"Starting download thread for {download_id}")
+        
+        # Update progress to show we're actively downloading
+        download_progress[download_id] = {
+            'status': 'downloading',
+            'percent': '0%',
+            'speed': 'Starting download...',
+            'message': 'Download in progress'
+        }
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
@@ -359,7 +353,20 @@ def download_video(url, format_type, download_id, user_id):
                 'error': error_message
             }
             return
+        
+        if not download_success:
+            download_progress[download_id] = {
+                'status': 'error',
+                'error': 'Download failed for unknown reason'
+            }
+            return
             
+        # Update progress to show processing
+        download_progress[download_id] = {
+            'status': 'processing',
+            'message': 'Download completed, processing files...'
+        }
+        
         logging.info(f"Download completed, checking files in {downloads_dir}")
         
         # Initialize user downloads if needed
@@ -469,11 +476,18 @@ def list_downloads():
         files = []
         user_downloads[user_id] = []
     
-    # Also check user's directory for any files
+    # Also check user's directory for any files, but filter out intermediate files
     user_downloads_dir = Path('downloads') / user_id
     if user_downloads_dir.exists():
         for file_path in user_downloads_dir.iterdir():
             if file_path.is_file():
+                # Skip webm/m4a files if an MP3 version exists (they're intermediate files)
+                if file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
+                    mp3_version = file_path.with_suffix('.mp3')
+                    if mp3_version.exists():
+                        logging.info(f"Skipping {file_path.name} because MP3 version exists")
+                        continue
+                
                 file_info = {
                     'name': file_path.name,
                     'size': file_path.stat().st_size,
