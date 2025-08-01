@@ -208,10 +208,12 @@ def download_video(url, format_type, download_id, user_id):
         base_opts = {
             'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
             'progress_hooks': [ProgressHook(download_id)],
-            'no_warnings': False,
+            'no_warnings': True,
             'extract_flat': False,
-            'socket_timeout': 30,
-            'retries': 3,
+            'socket_timeout': 10,
+            'retries': 2,
+            'fragment_retries': 2,
+            'ignoreerrors': False,
         }
         
         if ffmpeg_working:
@@ -245,8 +247,28 @@ def download_video(url, format_type, download_id, user_id):
         
         logging.info(f"Starting yt-dlp download with options: {ydl_opts}")
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+        # Add timeout for the download process
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Download timed out after 5 minutes")
+        
+        # Set 5 minute timeout
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(300)  # 5 minutes
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+        except TimeoutError as e:
+            logging.error(f"Download timed out: {e}")
+            download_progress[download_id] = {
+                'status': 'error',
+                'error': 'Download timed out after 5 minutes'
+            }
+            return
+        finally:
+            signal.alarm(0)  # Cancel the alarm
             
         logging.info(f"Download completed, checking files in {downloads_dir}")
         
