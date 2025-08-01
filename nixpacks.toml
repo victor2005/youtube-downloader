@@ -1,18 +1,11 @@
 [phases.setup]
-nixPkgs = ['python39', 'ffmpeg-full']
+nixPkgs = ['python3', 'ffmpeg']
 
 [phases.install]
-cmds = [
-  'pip install -r requirements.txt',
-  'which ffmpeg || echo "FFmpeg not found"',
-  'ffmpeg -version || echo "FFmpeg version check failed"'
-]
+cmds = ['pip install -r requirements.txt']
 
 [phases.build]
 cmds = ['echo "Build completed"']
 
 [start]
 cmd = 'gunicorn app:app'
-
-[variables]
-PATH = '/nix/store/*/bin:$PATH'
