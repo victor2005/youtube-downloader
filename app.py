@@ -139,6 +139,15 @@ def test_ytdlp():
             'error': str(e)
         }), 500
 
+@app.route('/debug-status')
+def debug_status():
+    """Debug endpoint to check current status"""
+    return jsonify({
+        'active_downloads': len(download_progress),
+        'download_progress': download_progress,
+        'user_downloads_count': len(user_downloads)
+    })
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -173,21 +182,24 @@ def download():
 
 def download_video(url, format_type, download_id, user_id):
     try:
-        logging.info(f"Processing download {download_id}: {url} for user {user_id}")
+        logging.info(f"STEP 1: Processing download {download_id}: {url} for user {user_id}")
         
         # Update progress to show we're starting
         download_progress[download_id] = {
             'status': 'initializing',
             'message': 'Initializing download...'
         }
+        logging.info(f"STEP 2: Set initializing status for {download_id}")
         
         # Create user-specific downloads directory
         downloads_dir = Path('downloads') / user_id
         downloads_dir.mkdir(parents=True, exist_ok=True)
+        logging.info(f"STEP 3: Created downloads directory for {download_id}")
         
         # Find and validate FFmpeg
         ffmpeg_location = None
         ffmpeg_working = False
+        logging.info(f"STEP 4: Starting FFmpeg detection for {download_id}")
         
         # Try to find ffmpeg in PATH first
         import shutil
@@ -227,13 +239,14 @@ def download_video(url, format_type, download_id, user_id):
                 ffmpeg_working = False
         else:
             logging.warning("FFmpeg not found in any location")
-        logging.info(f"Download format requested: {format_type}")
+        logging.info(f"STEP 5: Download format requested: {format_type}")
         
         # Update progress to show we're preparing
         download_progress[download_id] = {
             'status': 'preparing',
             'message': 'Preparing download...'
         }
+        logging.info(f"STEP 6: Set preparing status for {download_id}")
         
         # Configure yt-dlp options with better error handling
         base_opts = {
@@ -282,15 +295,16 @@ def download_video(url, format_type, download_id, user_id):
                 'format': 'best[height<=720]/best[height<=480]/best',
             }
         
-        logging.info(f"Starting yt-dlp download with options: {ydl_opts}")
+        logging.info(f"STEP 7: Starting yt-dlp download with options: {ydl_opts}")
         
         # Update progress to show download starting
         download_progress[download_id] = {
             'status': 'starting',
             'message': 'Starting yt-dlp download...'
         }
+        logging.info(f"STEP 8: Set starting status for {download_id}")
         
-        # Use a simple timeout approach with threading
+        logging.info(f"STEP 9: About to start download thread for {download_id}")
         download_success = False
         error_message = None
         
