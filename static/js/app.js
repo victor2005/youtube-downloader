@@ -89,8 +89,10 @@ function monitorProgress(downloadId) {
                 document.getElementById('successMessage').textContent = 'Download completed successfully!';
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
-                // Refresh download list after a short delay to ensure file is processed
-                setTimeout(loadDownloads, 1000);
+                // Immediately refresh the downloads list
+                loadDownloads();
+                // Also refresh after a short delay to ensure consistency
+                setTimeout(loadDownloads, 2000);
             } else if (progress.status === 'error') {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {

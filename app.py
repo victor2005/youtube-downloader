@@ -507,23 +507,12 @@ def download_video(url, format_type, download_id, user_id):
                 import time
                 time.sleep(1)
                 
-                # Update progress to show conversion completion
-                download_progress[download_id] = {
-                    'status': 'finished',
-                    'message': 'MP3 conversion completed!'
-                }
                 logging.info(f"MP3 conversion completed for {download_id}")
             else:
                 # For non-MP3 downloads or when FFmpeg is working, add all files normally
                 for file_path in downloads_dir.iterdir():
                     if file_path.is_file():
                         final_files.append(file_path)
-                
-                # Update progress to show completion
-                download_progress[download_id] = {
-                    'status': 'finished',
-                    'message': 'Download completed!'
-                }
             
             # Add final files to user's list
             logging.info(f"Processing {len(final_files)} final files for user downloads")
@@ -543,6 +532,17 @@ def download_video(url, format_type, download_id, user_id):
                         logging.info(f"File already exists in user downloads: {file_path.name}")
                 else:
                     logging.warning(f"File does not exist: {file_path}")
+            
+            # Final delay to ensure all file operations are complete
+            import time
+            time.sleep(0.5)
+            
+            # Now set the final status after all files have been processed
+            download_progress[download_id] = {
+                'status': 'finished',
+                'message': 'Download completed successfully!'
+            }
+            logging.info(f"Set final status to finished for {download_id} after processing {len(final_files)} files")
                         
         except Exception as conv_error:
             logging.error(f"Error in post-processing: {conv_error}")
@@ -550,17 +550,6 @@ def download_video(url, format_type, download_id, user_id):
                 'status': 'error',
                 'error': f'Post-processing failed: {str(conv_error)}'
             }
-            
-        # Only update final status if not already set to finished by conversion
-        current_status = download_progress.get(download_id, {}).get('status')
-        if current_status != 'finished':
-            download_progress[download_id] = {
-                'status': 'finished',
-                'message': 'Download completed successfully!'
-            }
-            logging.info(f"Set final status to finished for {download_id}")
-        else:
-            logging.info(f"Status already finished for {download_id}, not overwriting")
         
         logging.info(f"Download {download_id} completed successfully - files in user list: {len(user_downloads.get(user_id, []))}")
             
