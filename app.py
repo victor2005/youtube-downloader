@@ -503,11 +503,16 @@ def download_video(url, format_type, download_id, user_id):
                             logging.warning(f"Conversion failed, keeping original: {file_path.name}")
                             final_files.append(file_path)
                 
+                # Add a small delay to ensure file operations are complete
+                import time
+                time.sleep(1)
+                
                 # Update progress to show conversion completion
                 download_progress[download_id] = {
                     'status': 'finished',
                     'message': 'MP3 conversion completed!'
                 }
+                logging.info(f"MP3 conversion completed for {download_id}")
             else:
                 # For non-MP3 downloads or when FFmpeg is working, add all files normally
                 for file_path in downloads_dir.iterdir():
@@ -546,14 +551,18 @@ def download_video(url, format_type, download_id, user_id):
                 'error': f'Post-processing failed: {str(conv_error)}'
             }
             
-        # Final status update to mark as completed
-        if download_id in download_progress:
+        # Only update final status if not already set to finished by conversion
+        current_status = download_progress.get(download_id, {}).get('status')
+        if current_status != 'finished':
             download_progress[download_id] = {
                 'status': 'finished',
                 'message': 'Download completed successfully!'
             }
+            logging.info(f"Set final status to finished for {download_id}")
+        else:
+            logging.info(f"Status already finished for {download_id}, not overwriting")
         
-        logging.info(f"Download {download_id} completed successfully")
+        logging.info(f"Download {download_id} completed successfully - files in user list: {len(user_downloads.get(user_id, []))}")
             
     except Exception as e:
         logging.error(f"Download {download_id} failed: {str(e)}")
