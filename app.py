@@ -90,11 +90,14 @@ def download_video(url, format_type, download_id, user_id):
         downloads_dir = Path('downloads') / user_id
         downloads_dir.mkdir(parents=True, exist_ok=True)
         
-        # Find FFmpeg location
+        # Find and validate FFmpeg
         ffmpeg_location = None
+        ffmpeg_working = False
         
         # Try to find ffmpeg in PATH first
         import shutil
+        import subprocess
+        
         ffmpeg_location = shutil.which('ffmpeg')
         
         if not ffmpeg_location:
@@ -117,7 +120,18 @@ def download_video(url, format_type, download_id, user_id):
                     ffmpeg_location = path
                     break
         
-        logging.info(f"FFmpeg location: {ffmpeg_location}")
+        # Test if FFmpeg actually works
+        if ffmpeg_location:
+            try:
+                result = subprocess.run([ffmpeg_location, '-version'], 
+                                      capture_output=True, timeout=5)
+                ffmpeg_working = result.returncode == 0
+                logging.info(f"FFmpeg at {ffmpeg_location} - Working: {ffmpeg_working}")
+            except Exception as e:
+                logging.warning(f"FFmpeg test failed: {e}")
+                ffmpeg_working = False
+        else:
+            logging.warning("FFmpeg not found in any location")
         logging.info(f"Download format requested: {format_type}")
         
         # Configure yt-dlp options with better error handling
@@ -128,16 +142,16 @@ def download_video(url, format_type, download_id, user_id):
             'extract_flat': False,
         }
         
-        if ffmpeg_location:
+        if ffmpeg_working:
             base_opts['ffmpeg_location'] = ffmpeg_location
         
         if format_type == 'mp3':
-            if ffmpeg_location:
-                # FFmpeg available - convert to MP3
-                logging.info(f"Using FFmpeg at {ffmpeg_location} for MP3 conversion")
+            if ffmpeg_working:
+                # FFmpeg available and working - convert to MP3
+                logging.info(f"Converting to MP3 using FFmpeg at {ffmpeg_location}")
                 ydl_opts = {
                     **base_opts,
-                    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[height<=480]',
+                    'format': 'bestaudio/best',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
@@ -145,12 +159,11 @@ def download_video(url, format_type, download_id, user_id):
                     }],
                 }
             else:
-                # FFmpeg not available - download best audio format with proper extension
-                logging.warning("FFmpeg not found, downloading audio in original format (m4a/webm)")
+                # FFmpeg not working - inform user and download audio
+                logging.warning("FFmpeg not available - downloading high-quality audio (will be m4a/webm format)")
                 ydl_opts = {
                     **base_opts,
-                    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
-                    'writeinfojson': False,
+                    'format': 'bestaudio/best',
                 }
         else:
             ydl_opts = {
