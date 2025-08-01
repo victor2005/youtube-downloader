@@ -247,28 +247,41 @@ def download_video(url, format_type, download_id, user_id):
         
         logging.info(f"Starting yt-dlp download with options: {ydl_opts}")
         
-        # Add timeout for the download process
-        import signal
+        # Use a simple timeout approach with threading
+        download_success = False
+        error_message = None
         
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Download timed out after 5 minutes")
+        def download_worker():
+            nonlocal download_success, error_message
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+                download_success = True
+            except Exception as e:
+                error_message = str(e)
+                logging.error(f"Download error: {e}")
         
-        # Set 5 minute timeout
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(300)  # 5 minutes
+        # Start download in a separate thread with timeout
+        import concurrent.futures
         
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-        except TimeoutError as e:
-            logging.error(f"Download timed out: {e}")
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(download_worker)
+            try:
+                future.result(timeout=300)  # 5 minute timeout
+            except concurrent.futures.TimeoutError:
+                logging.error("Download timed out after 5 minutes")
+                download_progress[download_id] = {
+                    'status': 'error',
+                    'error': 'Download timed out after 5 minutes'
+                }
+                return
+        
+        if error_message:
             download_progress[download_id] = {
                 'status': 'error',
-                'error': 'Download timed out after 5 minutes'
+                'error': error_message
             }
             return
-        finally:
-            signal.alarm(0)  # Cancel the alarm
             
         logging.info(f"Download completed, checking files in {downloads_dir}")
         
