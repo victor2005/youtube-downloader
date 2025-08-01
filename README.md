@@ -68,8 +68,20 @@ Downloaded files are stored in the `downloads/` directory within the project fol
 - Downloads are processed in the background with real-time progress updates
 - The interface is responsive and works on both desktop and mobile devices
 
+## Deploy to Railway (Free Online Hosting)
+
+1. **Fork this repository** to your GitHub account
+2. **Sign up at [Railway](https://railway.app)** with your GitHub account
+3. **Create a new project** from your GitHub repository
+4. **Railway will automatically deploy** your app!
+5. **Share the generated URL** with your friends
+
+### Deploy Button
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/python-flask)
+
 ## Troubleshooting
 
 - If you get permission errors, make sure the start script is executable: `chmod +x start.sh`
 - If downloads fail, try updating yt-dlp: `pip install --upgrade yt-dlp`
 - For MP3 extraction issues, ensure FFmpeg is installed: `brew install ffmpeg`
+- For deployment issues, check the Railway logs in your dashboard
