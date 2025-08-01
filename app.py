@@ -67,6 +67,8 @@ class ProgressHook:
     
     def __call__(self, d):
         try:
+            logging.info(f"Progress hook called for {self.download_id} with status: {d.get('status', 'unknown')}")
+            
             if d['status'] == 'downloading':
                 percent = d.get('_percent_str', 'N/A')
                 speed = d.get('_speed_str', 'N/A')
@@ -82,6 +84,9 @@ class ProgressHook:
                     'filename': d.get('filename', 'unknown')
                 }
                 logging.info(f"Download {self.download_id} finished: {d.get('filename', 'unknown')}")
+            else:
+                # Log other statuses for debugging
+                logging.info(f"Progress {self.download_id}: status={d.get('status')}, data={d}")
         except Exception as e:
             logging.error(f"Progress hook error for {self.download_id}: {e}")
 
@@ -247,6 +252,12 @@ def download_video(url, format_type, download_id, user_id):
         
         logging.info(f"Starting yt-dlp download with options: {ydl_opts}")
         
+        # Update progress to show download starting
+        download_progress[download_id] = {
+            'status': 'starting',
+            'message': 'Starting yt-dlp download...'
+        }
+        
         # Use a simple timeout approach with threading
         download_success = False
         error_message = None
@@ -254,22 +265,28 @@ def download_video(url, format_type, download_id, user_id):
         def download_worker():
             nonlocal download_success, error_message
             try:
+                logging.info(f"Download worker starting for {download_id}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    logging.info(f"Calling yt-dlp download for {download_id}")
                     ydl.download([url])
+                    logging.info(f"yt-dlp download completed for {download_id}")
                 download_success = True
             except Exception as e:
                 error_message = str(e)
-                logging.error(f"Download error: {e}")
+                logging.error(f"Download error for {download_id}: {e}")
         
         # Start download in a separate thread with timeout
         import concurrent.futures
+        
+        logging.info(f"Starting download thread for {download_id}")
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(download_worker)
             try:
                 future.result(timeout=300)  # 5 minute timeout
+                logging.info(f"Download thread completed for {download_id}, success: {download_success}")
             except concurrent.futures.TimeoutError:
-                logging.error("Download timed out after 5 minutes")
+                logging.error(f"Download timed out after 5 minutes for {download_id}")
                 download_progress[download_id] = {
                     'status': 'error',
                     'error': 'Download timed out after 5 minutes'
@@ -289,6 +306,9 @@ def download_video(url, format_type, download_id, user_id):
         if user_id not in user_downloads:
             user_downloads[user_id] = []
         
+        # Initialize files list to track what gets added to user downloads
+        final_files = []
+        
         try:
             # Post-process for MP3 conversion if needed
             if format_type == 'mp3' and not ffmpeg_working and PYDUB_AVAILABLE:
@@ -298,9 +318,8 @@ def download_video(url, format_type, download_id, user_id):
                     'status': 'converting',
                     'message': 'Converting to MP3...'
                 }
-                converted_files = []
                 
-                # Process audio files for conversion (don't add to user list yet)
+                # Process audio files for conversion
                 for file_path in downloads_dir.iterdir():
                     if file_path.is_file() and file_path.suffix.lower() in ['.webm', '.m4a', '.ogg']:
                         mp3_path = file_path.with_suffix('.mp3')
@@ -310,13 +329,30 @@ def download_video(url, format_type, download_id, user_id):
                             # Conversion successful - remove original and track MP3
                             file_path.unlink()
                             logging.info(f"Successfully converted to MP3: {mp3_path.name}")
-                            converted_files.append(mp3_path)
+                            final_files.append(mp3_path)
                         else:
                             logging.warning(f"Conversion failed, keeping original: {file_path.name}")
-                            converted_files.append(file_path)
+                            final_files.append(file_path)
+                
+                # Update progress to show conversion completion
+                download_progress[download_id] = {
+                    'status': 'finished',
+                    'message': 'MP3 conversion completed!'
+                }
+            else:
+                # For non-MP3 downloads or when FFmpeg is working, add all files normally
+                for file_path in downloads_dir.iterdir():
+                    if file_path.is_file():
+                        final_files.append(file_path)
+                
+                # Update progress to show completion
+                download_progress[download_id] = {
+                    'status': 'finished',
+                    'message': 'Download completed!'
+                }
             
-            # Add only the final converted files to user's list
-            for file_path in converted_files:
+            # Add final files to user's list
+            for file_path in final_files:
                 if file_path.exists():
                     file_info = {
                         'name': file_path.name,
@@ -327,27 +363,13 @@ def download_video(url, format_type, download_id, user_id):
                     # Avoid duplicates
                     if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
                         user_downloads[user_id].append(file_info)
-            
-                # Update progress to show completion
-                download_progress[download_id] = {
-                    'status': 'finished',
-                    'message': 'MP3 conversion completed!'
-                }
-            else:
-                # For non-MP3 downloads or when FFmpeg is working, add all files normally
-                for file_path in downloads_dir.iterdir():
-                    if file_path.is_file():
-                        file_info = {
-                            'name': file_path.name,
-                            'size': file_path.stat().st_size,
-                            'modified': file_path.stat().st_mtime,
-                            'user_id': user_id
-                        }
-                        # Avoid duplicates
-                        if not any(f['name'] == file_info['name'] for f in user_downloads[user_id]):
-                            user_downloads[user_id].append(file_info)
+                        
         except Exception as conv_error:
             logging.error(f"Error in post-processing: {conv_error}")
+            download_progress[download_id] = {
+                'status': 'error',
+                'error': f'Post-processing failed: {str(conv_error)}'
+            }
             
         logging.info(f"Download {download_id} completed successfully")
             
@@ -361,6 +383,7 @@ def download_video(url, format_type, download_id, user_id):
 @app.route('/progress/<download_id>')
 def get_progress(download_id):
     progress = download_progress.get(download_id, {'status': 'not_found'})
+    logging.info(f"Progress requested for {download_id}: {progress}")
     return jsonify(progress)
 
 @app.route('/downloads')

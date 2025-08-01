@@ -63,11 +63,15 @@ function monitorProgress(downloadId) {
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'initializing') {
                 progressText.textContent = 'Initializing download...';
-                progressFill.style.width = '10%';
+                progressFill.style.width = '5%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'preparing') {
                 progressText.textContent = 'Preparing download...';
-                progressFill.style.width = '20%';
+                progressFill.style.width = '15%';
+                setTimeout(checkProgress, 1000);
+            } else if (progress.status === 'starting') {
+                progressText.textContent = progress.message || 'Starting download...';
+                progressFill.style.width = '25%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'converting') {
                 progressText.textContent = progress.message || 'Converting to MP3...';
