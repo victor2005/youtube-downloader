@@ -118,6 +118,7 @@ def download_video(url, format_type, download_id, user_id):
                     break
         
         logging.info(f"FFmpeg location: {ffmpeg_location}")
+        logging.info(f"Download format requested: {format_type}")
         
         # Configure yt-dlp options with better error handling
         base_opts = {
@@ -133,9 +134,10 @@ def download_video(url, format_type, download_id, user_id):
         if format_type == 'mp3':
             if ffmpeg_location:
                 # FFmpeg available - convert to MP3
+                logging.info(f"Using FFmpeg at {ffmpeg_location} for MP3 conversion")
                 ydl_opts = {
                     **base_opts,
-                    'format': 'bestaudio/best',
+                    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[height<=480]',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
@@ -143,11 +145,12 @@ def download_video(url, format_type, download_id, user_id):
                     }],
                 }
             else:
-                # FFmpeg not available - download best audio format
-                logging.warning("FFmpeg not found, downloading audio in original format")
+                # FFmpeg not available - download best audio format with proper extension
+                logging.warning("FFmpeg not found, downloading audio in original format (m4a/webm)")
                 ydl_opts = {
                     **base_opts,
-                    'format': 'bestaudio/best',
+                    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+                    'writeinfojson': False,
                 }
         else:
             ydl_opts = {
@@ -155,9 +158,13 @@ def download_video(url, format_type, download_id, user_id):
                 'format': 'best[height<=720]/best[height<=480]/best',
             }
         
+        logging.info(f"Starting yt-dlp download with options: {ydl_opts}")
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
             
+        logging.info(f"Download completed, checking files in {downloads_dir}")
+        
         # Add completed file to user's download list
         if user_id not in user_downloads:
             user_downloads[user_id] = []
