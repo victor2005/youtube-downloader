@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify, send_file, session
-from flask_compress import Compress
 import yt_dlp
 import os
 import tempfile
@@ -20,9 +19,6 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
-
-# Enable compression
-Compress(app)
 
 # Add cache headers for static content
 @app.after_request

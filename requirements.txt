@@ -3,4 +3,3 @@ yt-dlp
 gunicorn==21.2.0
 pydub
 mutagen
-Flask-Compress==1.13
