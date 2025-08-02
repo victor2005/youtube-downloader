@@ -2,12 +2,13 @@ from flask import Flask, render_template, request, jsonify, send_file, session, 
 from flask_babel import Babel, gettext, get_locale
 import yt_dlp
 import os
-import tempfile
-import threading
+import re
 import time
-from pathlib import Path
-import logging
 import uuid
+import logging
+import threading
+from pathlib import Path
+
 try:
     from pydub import AudioSegment
     PYDUB_AVAILABLE = True
@@ -82,6 +83,14 @@ def cleanup_old_progress():
         progress_timestamps.pop(key, None)
         logging.info(f"Cleaned up old progress data for download {key}")
 
+def strip_ansi_codes(text):
+    """Remove ANSI color codes from text"""
+    if not isinstance(text, str):
+        return text
+    # Remove ANSI escape sequences
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text).strip()
+
 def update_progress(download_id, status_dict):
     """Update progress with timestamp"""
     import time
@@ -118,8 +127,13 @@ class ProgressHook:
             logging.info(f"Progress hook called for {self.download_id} with status: {d.get('status', 'unknown')}")
             
             if d['status'] == 'downloading':
-                percent = d.get('_percent_str', 'N/A')
-                speed = d.get('_speed_str', 'N/A')
+                # Clean up percent and speed strings by removing ANSI color codes
+                percent_raw = d.get('_percent_str', 'N/A')
+                speed_raw = d.get('_speed_str', 'N/A')
+                
+                percent = strip_ansi_codes(percent_raw)
+                speed = strip_ansi_codes(speed_raw)
+                
                 download_progress[self.download_id] = {
                     'status': 'downloading',
                     'percent': percent,
@@ -349,22 +363,27 @@ def download_video(url, format_type, download_id, user_id):
         })
         logging.info(f"STEP 6: Set preparing status for {download_id}")
         
-        # Configure yt-dlp options with better error handling
+        # Configure yt-dlp options with cleaner output
         base_opts = {
             'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
             'progress_hooks': [ProgressHook(download_id)],
-            'no_warnings': False,  # Enable warnings for debugging
+            'no_warnings': False,
             'extract_flat': False,
             'socket_timeout': 15,
-            'retries': 1,  # Reduce retries to fail faster
+            'retries': 1,
             'fragment_retries': 1,
             'ignoreerrors': False,
-            'verbose': True,  # Enable verbose output for debugging
+            'verbose': True,
             'quiet': False,
             # Add user agent to avoid blocking
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate'
             },
+            # Reduce color output for better parsing
+            'compat_opts': set(),
         }
         
         if ffmpeg_working:

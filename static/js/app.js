@@ -57,8 +57,12 @@ function monitorProgress(downloadId) {
             console.log('Checking progress:', progress);
             
             if (progress.status === 'downloading') {
-                progressText.textContent = `${window.i18n.downloadingProgress} ${progress.percent} (${progress.speed})`;
-                const percentMatch = progress.percent.match(/(\d+\.?\d*)%/);
+                // Clean up the progress text to remove any ANSI codes
+                const cleanPercent = cleanProgressText(progress.percent || '0%');
+                const cleanSpeed = cleanProgressText(progress.speed || '');
+                
+                progressText.textContent = `${window.i18n.downloadingProgress} ${cleanPercent} (${cleanSpeed})`;
+                const percentMatch = cleanPercent.match(/(\d+\.?\d*)%/);
                 if (percentMatch) {
                     progressFill.style.width = percentMatch[1] + '%';
                 }
@@ -136,6 +140,16 @@ function resetForm() {
     document.getElementById('progressSection').style.display = 'none';
     document.getElementById('progressFill').style.width = '0%';
     stopAutoRefresh(); // Stop auto-refreshing when download is done
+}
+
+// Function to clean up any remaining ANSI color codes or unwanted characters
+function cleanProgressText(text) {
+    if (!text) return text;
+    // Remove ANSI escape sequences
+    return text.replace(/\x1b\[[0-9;]*m/g, '')
+              .replace(/\[0;[0-9]+m/g, '')
+              .replace(/\[0m/g, '')
+              .trim();
 }
 
 function formatFileSize(bytes) {

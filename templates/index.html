@@ -281,22 +281,17 @@
         </div>
         
         <div class="content">
-            <!-- Top Banner Ad -->
-            <div class="ad-banner" id="topBannerAd">
-                <!-- Monetag Banner Ad -->
-                <script type="text/javascript">
-                    atOptions = {
-                        'key' : '9653282',
-                        'format' : 'iframe',
-                        'height' : 90,
-                        'width' : 728,
-                        'params' : {}
-                    };
-                    document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9653282/invoke.js"></scr' + 'ipt>');
-                </script>
-                <!-- Monetag ads often load as invisible overlays - this is normal -->
-                <div class="ad-placeholder" style="pointer-events: none; position: absolute; z-index: -1;">Banner Ad Loading...</div>
-            </div>
+            <!-- Monetag Banner Ad (invisible overlay) -->
+            <script type="text/javascript">
+                atOptions = {
+                    'key' : '9653282',
+                    'format' : 'iframe',
+                    'height' : 90,
+                    'width' : 728,
+                    'params' : {}
+                };
+                document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9653282/invoke.js"></scr' + 'ipt>');
+            </script>
             
             <form id="downloadForm">
                 <div class="form-group">
@@ -336,22 +331,17 @@
                 <div id="progressText">{{ _('Preparing download...') }}</div>
             </div>
             
-            <!-- Side Rectangle Ad -->
-            <div class="ad-rectangle" id="sideRectangleAd">
-                <!-- Monetag Rectangle Ad -->
-                <script type="text/javascript">
-                    atOptions = {
-                        'key' : '9655935',
-                        'format' : 'iframe',
-                        'height' : 250,
-                        'width' : 300,
-                        'params' : {}
-                    };
-                    document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9655935/invoke.js"></scr' + 'ipt>');
-                </script>
-                <!-- Monetag ads often load as invisible overlays - this is normal -->
-                <div class="ad-placeholder" style="pointer-events: none; position: absolute; z-index: -1;">Rectangle Ad Loading...</div>
-            </div>
+            <!-- Monetag Rectangle Ad (invisible overlay) -->
+            <script type="text/javascript">
+                atOptions = {
+                    'key' : '9655935',
+                    'format' : 'iframe',
+                    'height' : 250,
+                    'width' : 300,
+                    'params' : {}
+                };
+                document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9655935/invoke.js"></scr' + 'ipt>');
+            </script>
             
             <div class="downloads-section">
                 <h3>{{ _('Downloaded Files') }}</h3>
@@ -361,10 +351,6 @@
                 <button type="button" onclick="loadDownloads()" style="margin-top: 10px; padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 {{ _('Refresh List') }}</button>
             </div>
             
-            <!-- Bottom Banner Ad -->
-            <div class="ad-banner" id="bottomBannerAd">
-                <div class="ad-placeholder">Advertisement</div>
-            </div>
         </div>
     </div>
 
