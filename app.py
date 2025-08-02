@@ -69,13 +69,13 @@ user_downloads = {}  # session_id -> list of files
 progress_timestamps = {}  # track when progress was last updated
 
 def cleanup_old_progress():
-    """Clean up progress data older than 10 minutes"""
+    """Clean up progress data older than 30 minutes"""
     import time
     current_time = time.time()
     old_keys = []
     
     for download_id, timestamp in progress_timestamps.items():
-        if current_time - timestamp > 600:  # 10 minutes
+        if current_time - timestamp > 1800:  # 30 minutes
             old_keys.append(download_id)
     
     for key in old_keys:
