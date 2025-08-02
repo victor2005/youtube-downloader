@@ -269,8 +269,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="language-selector" style="position: absolute; top: 20px; right: 20px;">
-                <select onchange="changeLanguage(this.value)" style="padding: 5px 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+            <div class="language-selector">
+                <select onchange="changeLanguage(this.value)">
                     {% for code, name in languages.items() %}
                         <option value="{{ code }}" {% if get_locale() == code %}selected{% endif %}>{{ name }}</option>
                     {% endfor %}
