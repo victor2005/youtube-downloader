@@ -331,12 +331,25 @@ class TranscriptionManager {
         try {
             this.updateStatus('Loading audio file...', 60);
             
+            // Add debugging
+            console.log('Loading audio file:', filename);
+            
             const response = await fetch(`/download-file/${encodeURIComponent(filename)}`);
             if (!response.ok) {
                 throw new Error(`Failed to load audio file: ${response.statusText}`);
             }
 
+            const contentLength = response.headers.get('content-length');
+            console.log('Audio file size:', contentLength ? (parseInt(contentLength) / 1024 / 1024).toFixed(2) + ' MB' : 'unknown');
+            
+            // Check file size before processing
+            if (contentLength && parseInt(contentLength) > 50 * 1024 * 1024) { // 50MB limit
+                throw new Error('Audio file too large (over 50MB). Please use a smaller file or shorter audio clip.');
+            }
+
             const arrayBuffer = await response.arrayBuffer();
+            console.log('Audio buffer loaded, size:', (arrayBuffer.byteLength / 1024 / 1024).toFixed(2) + ' MB');
+            
             this.updateStatus('Processing audio...', 70);
             
             // Process audio in chunks to prevent blocking
@@ -362,7 +375,7 @@ class TranscriptionManager {
             const processingTimeout = setTimeout(() => {
                 audioContext.close();
                 reject(new Error('Audio processing timed out - file may be too large or corrupted'));
-            }, 30000); // 30 second timeout
+            }, 60000); // 60 second timeout
             
             audioContext.decodeAudioData(arrayBuffer)
                 .then(audioBuffer => {

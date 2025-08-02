@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "gunicorn app:app"
+startCommand = "gunicorn --timeout 600 --workers 2 --threads 4 --max-requests 1000 --preload app:app"
 healthcheckPath = "/"
 healthcheckTimeout = 300
 restartPolicyType = "always"
