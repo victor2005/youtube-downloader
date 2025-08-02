@@ -9,7 +9,7 @@ let transformersLoaded = false;
 async function loadTransformers() {
     try {
         // Try to load the transformers library
-        const transformers = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js');
+        const transformers = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@latest/dist/transformers.min.js');
         
         // Set up the environment
         transformers.env.allowRemoteModels = true;
@@ -49,7 +49,17 @@ self.onmessage = async function(e) {
                 await loadModel(data.modelName);
                 break;
             case 'transcribeChunk':
-                await transcribeChunk(data.audioData, data.options, data.chunkIndex, data.totalChunks);
+                await transcribeChunk(
+                    data.audioData, 
+                    data.options, 
+                    data.chunkIndex, 
+                    data.totalChunks,
+                    data.chunkDuration,
+                    data.overlapDuration,
+                    data.hasOverlap,
+                    data.startTime,
+                    data.endTime
+                );
                 break;
             case 'cleanup':
                 cleanup();
@@ -152,40 +162,69 @@ async function loadModel(modelName) {
     }
 }
 
-async function transcribeChunk(audioData, options, chunkIndex, totalChunks) {
+async function transcribeChunk(audioData, options, chunkIndex, totalChunks, chunkDuration, overlapDuration, hasOverlap, startTime, endTime) {
     if (!pipeline) {
         throw new Error('Model not loaded');
     }
 
     try {
-        // Send progress update
         self.postMessage({
             type: 'chunkStart',
             chunkIndex,
-            totalChunks
+            totalChunks,
+            chunkDuration,
+            startTime,
+            endTime
         });
 
-        const startTime = Date.now();
+        const processingStartTime = Date.now();
+        console.log(`Processing Chunk ${chunkIndex + 1}/${totalChunks} from ${startTime}s to ${endTime}s, duration ${chunkDuration}s`);
         
-        // Transcribe the chunk with optimized settings for speed
-        const result = await pipeline(audioData, {
-            // Optimized for streaming
-            chunk_length_s: 8,  // Smaller chunks for faster processing
-            stride_length_s: 1,
+        // Enhanced options for better quality and language consistency
+        const enhancedOptions = {
+            chunk_length_s: 30, // Use full 30s for internal processing
+            stride_length_s: hasOverlap ? 5 : 1, // Adjust stride based on overlap
             return_timestamps: false,
+            condition_on_previous_text: false, // Disable to prevent repetition with natural pause chunks
+            compression_ratio_threshold: 2.4,
+            logprob_threshold: -1.0,
+            no_speech_threshold: 0.6,
+            // Force language consistency and prevent repetition
+            task: 'transcribe', // Explicitly set transcription task
+            temperature: 0.0, // Use deterministic decoding to prevent loops
+            repetition_penalty: 1.2, // Higher penalty to prevent repetition
             ...options
-        });
+        };
+        
+        // Force language consistency - prevent auto-translation
+        if (options.language && options.language !== 'auto') {
+            enhancedOptions.language = options.language;
+            
+            // For Chinese and other non-English languages, be more strict
+            if (options.language === 'zh' || options.language === 'chinese') {
+                // Use additional parameters to enforce Chinese
+                enhancedOptions.task = 'transcribe';
+                enhancedOptions.temperature = 0.0;
+                enhancedOptions.repetition_penalty = 1.3; // Even higher for Chinese
+                enhancedOptions.max_length = 448; // Limit length to prevent runaway generation
+            }
+        }
 
-        const processingTime = Date.now() - startTime;
+        const result = await pipeline(audioData, enhancedOptions);
+        const processingTime = Date.now() - processingStartTime;
         const text = result.text || result || '';
 
-        // Send result back to main thread
         self.postMessage({
             type: 'chunkComplete',
             chunkIndex,
             text: text.trim(),
             processingTime,
-            totalChunks
+            totalChunks,
+            hasOverlap,
+            chunkDuration,
+            overlapDuration,
+            startTime,
+            endTime
         });
 
     } catch (error) {

@@ -166,14 +166,18 @@ class TranscriptionManager {
 
     handleChunkComplete(message) {
         const { chunkIndex, text, processingTime, totalChunks, startTime, endTime } = message;
-        // Use the actual chunk timing data sent from worker
-        const timeStart = startTime || 0;
-        const timeEnd = endTime || 0;
         
-        if (text.trim()) {
+        // Validate timing data with fallbacks
+        const timeStart = (startTime != null && !isNaN(startTime)) ? startTime : (chunkIndex * 30);
+        const timeEnd = (endTime != null && !isNaN(endTime)) ? endTime : ((chunkIndex + 1) * 30);
+        
+        // Check for repetitive text patterns and filter them out
+        const cleanedText = this.filterRepetitiveText(text);
+        
+        if (cleanedText && cleanedText.trim()) {
             const chunkLabel = `[${this.formatTime(timeStart)}-${this.formatTime(timeEnd)}]`;
-            const speedInfo = `(${Math.round(processingTime / 1000)}s)`;
-            const chunkTranscript = `${chunkLabel} ${speedInfo}\n${text.trim()}\n\n`;
+            const speedInfo = `(${Math.round((processingTime || 0) / 1000)}s)`;
+            const chunkTranscript = `${chunkLabel} ${speedInfo}\n${cleanedText.trim()}\n\n`;
             
             this.fullTranscript += chunkTranscript;
         } else {
@@ -639,6 +643,11 @@ class TranscriptionManager {
     }
 
     formatTime(seconds) {
+        // Handle invalid or null values
+        if (seconds == null || isNaN(seconds) || seconds < 0) {
+            return '0:00';
+        }
+        
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -807,6 +816,49 @@ class TranscriptionManager {
         }
         
         return maxOverlap;
+    }
+
+    // Filter out repetitive text patterns that Whisper sometimes generates
+    filterRepetitiveText(text) {
+        if (!text || typeof text !== 'string') return '';
+        
+        // Remove common repetitive patterns
+        let cleaned = text.trim();
+        
+        // Pattern 1: "and the soul has a soul" type repetitions
+        cleaned = cleaned.replace(/(and the \w+ has a \w+,?\s*){3,}/gi, '');
+        
+        // Pattern 2: Same phrase repeated multiple times
+        const words = cleaned.split(/\s+/);
+        const cleanedWords = [];
+        let lastPhrase = '';
+        let phraseCount = 0;
+        
+        for (let i = 0; i < words.length; i++) {
+            const currentPhrase = words.slice(i, Math.min(i + 4, words.length)).join(' ').toLowerCase();
+            
+            if (currentPhrase === lastPhrase) {
+                phraseCount++;
+                if (phraseCount > 2) { // Skip if repeated more than 2 times
+                    continue;
+                }
+            } else {
+                phraseCount = 0;
+                lastPhrase = currentPhrase;
+            }
+            
+            cleanedWords.push(words[i]);
+        }
+        
+        cleaned = cleanedWords.join(' ');
+        
+        // Pattern 3: Remove single words repeated many times
+        cleaned = cleaned.replace(/(\b\w+\b)(?:\s+\1){4,}/gi, '$1');
+        
+        // Pattern 4: Clean up excessive punctuation
+        cleaned = cleaned.replace(/[,，]{2,}/g, '，').replace(/[.。]{2,}/g, '。');
+        
+        return cleaned.trim();
     }
 
     // Final cleanup to remove remaining duplicates and improve readability
