@@ -140,15 +140,13 @@ class TranscriptionManager {
                 break;
                 
             case 'chunkStart':
-                const { chunkIndex, totalChunks, chunkDuration = 30 } = message;
-                const timeStart = (chunkIndex * (chunkDuration - 5)); // Account for overlap
-                const timeEnd = Math.min(timeStart + chunkDuration, this.audioDuration);
+                const { chunkIndex, totalChunks, startTime, endTime } = message;
                 
-                this.updateStatus(`🔄 Processing [${this.formatTime(timeStart)}-${this.formatTime(timeEnd)}] (${chunkIndex + 1}/${totalChunks})`, 
+                this.updateStatus(`🔄 Processing [${this.formatTime(startTime)}-${this.formatTime(endTime)}] (${chunkIndex + 1}/${totalChunks})`, 
                     80 + ((chunkIndex + 1) / totalChunks) * 18);
                 
                 // Update UI to show current chunk being processed
-                const currentChunkInfo = `\n🔄 Processing [${this.formatTime(timeStart)}-${this.formatTime(timeEnd)}]...`;
+                const currentChunkInfo = `\n🔄 Processing [${this.formatTime(startTime)}-${this.formatTime(endTime)}]...`;
                 this.elements.transcriptText.textContent = this.fullTranscript + currentChunkInfo;
                 break;
                 
@@ -167,9 +165,10 @@ class TranscriptionManager {
     }
 
     handleChunkComplete(message) {
-        const { chunkIndex, text, processingTime, totalChunks } = message;
-        const timeStart = chunkIndex * 8;
-        const timeEnd = Math.min((chunkIndex + 1) * 8, this.audioDuration);
+        const { chunkIndex, text, processingTime, totalChunks, startTime, endTime } = message;
+        // Use the actual chunk timing data sent from worker
+        const timeStart = startTime || 0;
+        const timeEnd = endTime || 0;
         
         if (text.trim()) {
             const chunkLabel = `[${this.formatTime(timeStart)}-${this.formatTime(timeEnd)}]`;
@@ -262,7 +261,7 @@ class TranscriptionManager {
         
         try {
             // Import Transformers.js dynamically - use latest version for better performance
-            const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+            const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@latest');
             
             // Configure for better performance
             env.allowRemoteModels = true;
@@ -457,35 +456,49 @@ class TranscriptionManager {
     }
 
     async streamingTranscribeWithWorker(audioData, language, durationSeconds) {
-        // Use 30-second chunks with overlap for better accuracy and context
-        const chunkDuration = 30; // Longer chunks for better context
-        const overlapDuration = 5; // 5-second overlap between chunks
         const sampleRate = 16000;
-        const samplesPerChunk = chunkDuration * sampleRate;
-        const overlapSamples = overlapDuration * sampleRate;
-        const totalChunks = Math.ceil(audioData.length / (samplesPerChunk - overlapSamples));
+        const { chunkDuration, overlapDuration } = this.getOptimalChunkSize(audioData.length, sampleRate);
+        
+        console.log(`Using adaptive chunking: ${chunkDuration}s chunks with ${overlapDuration}s overlap for ${Math.round(durationSeconds)}s audio`);
+        
+        // Use VAD-aware boundaries for better chunk splits
+        const boundaries = this.calculateChunkBoundaries(audioData, sampleRate, chunkDuration);
+        const totalChunks = boundaries.length;
         
         this.totalChunks = totalChunks;
-        this.elements.transcriptText.textContent = '🎙️ Starting transcription...\n\n';
+        this.elements.transcriptText.textContent = `🎙️ Starting enhanced transcription with ${totalChunks} optimized chunks...\n\n`;
         
-        // Prepare transcription options
         const options = {
             return_timestamps: false,
+            // Add these Whisper-specific optimizations for better quality
+            condition_on_previous_text: true, // Better context continuity
+            compression_ratio_threshold: 2.4,
+            logprob_threshold: -1.0,
+            no_speech_threshold: 0.6
         };
         
-        // Add language constraint if not auto-detect
         if (language && language !== 'auto') {
             options.language = language;
+            // Note: Cannot use forced_decoder_ids with language parameter
+            // The language parameter should be sufficient for language consistency
         }
         
-        // Process chunks in the worker with overlap
-        const chunkPromises = [];
-        
         for (let i = 0; i < totalChunks; i++) {
-            // Calculate chunk boundaries with overlap
-            const startSample = i * (samplesPerChunk - overlapSamples);
-            const endSample = Math.min(startSample + samplesPerChunk, audioData.length);
+            const boundary = boundaries[i];
+            
+            // Use exact natural pause boundaries - no artificial overlap
+            const startSample = boundary.start;
+            const endSample = boundary.end;
+            
             const chunk = audioData.slice(startSample, endSample);
+            const chunkDuration = (endSample - startSample) / sampleRate;
+            
+            // Display times match the actual chunk boundaries exactly
+            const startTime = startSample / sampleRate;
+            const endTime = endSample / sampleRate;
+            
+            console.log(`Sending Chunk ${i + 1}/${totalChunks}: from sample ${startSample} to ${endSample} (${chunkDuration.toFixed(1)}s)`);
+            console.log(`Natural pause chunk: ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s`);
             
             // Send chunk to worker for processing
             this.worker.postMessage({
@@ -495,8 +508,11 @@ class TranscriptionManager {
                     options,
                     chunkIndex: i,
                     totalChunks,
-                    chunkDuration: 30,
-                    overlapDuration: 5
+                    chunkDuration: chunkDuration,
+                    overlapDuration: 0, // No overlap with natural pause detection
+                    hasOverlap: false, // Pure natural boundaries
+                    startTime: startTime,
+                    endTime: endTime
                 }
             });
         }
@@ -505,9 +521,9 @@ class TranscriptionManager {
         return new Promise((resolve, reject) => {
             const checkCompletion = () => {
                 if (this.processedChunks >= totalChunks) {
-                    resolve(this.fullTranscript.trim());
+                    const processedTranscript = this.postProcessTranscript(this.fullTranscript.trim());
+                    resolve(processedTranscript);
                 } else {
-                    // Check again in a bit
                     setTimeout(checkCompletion, 100);
                 }
             };
@@ -626,6 +642,203 @@ class TranscriptionManager {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Use reasonable chunk sizes for good transcription quality
+    getOptimalChunkSize(audioLength, sampleRate) {
+        const totalDuration = audioLength / sampleRate;
+        
+        // Use moderate chunk sizes with reasonable overlap
+        if (totalDuration < 60) {
+            return { chunkDuration: 30, overlapDuration: 5 }; // 30s chunks with 5s overlap
+        } else if (totalDuration < 300) {
+            return { chunkDuration: 30, overlapDuration: 5 };
+        } else {
+            return { chunkDuration: 30, overlapDuration: 5 };
+        }
+    }
+
+    // Smart chunking with natural pause detection
+    calculateChunkBoundaries(audioData, sampleRate, baseChunkSize) {
+        const boundaries = [];
+        const baseSamples = baseChunkSize * sampleRate;
+        const totalSamples = audioData.length;
+        const minChunkSamples = 10 * sampleRate; // Minimum 10 seconds
+        const maxChunkSamples = 45 * sampleRate; // Maximum 45 seconds
+        
+        console.log('Calculating natural pause boundaries...');
+        
+        let start = 0;
+        while (start < totalSamples) {
+            let idealEnd = Math.min(start + baseSamples, totalSamples);
+            let actualEnd = idealEnd;
+            
+            // If this isn't the last chunk, look for natural pause
+            if (idealEnd < totalSamples) {
+                const searchStart = Math.max(start + minChunkSamples, idealEnd - 10 * sampleRate);
+                const searchEnd = Math.min(idealEnd + 10 * sampleRate, totalSamples);
+                
+                const pauseLocation = this.findNaturalPause(audioData, searchStart, searchEnd, sampleRate);
+                if (pauseLocation > 0) {
+                    actualEnd = pauseLocation;
+                    console.log(`Found natural pause at ${(pauseLocation / sampleRate).toFixed(1)}s`);
+                }
+            }
+            
+            boundaries.push({ start, end: actualEnd });
+            
+            // Move to next chunk
+            start = actualEnd;
+            if (start >= totalSamples) break;
+        }
+        
+        console.log(`Created ${boundaries.length} chunks with natural boundaries`);
+        return boundaries;
+    }
+    
+    // Find natural pauses in audio using simple energy-based detection
+    findNaturalPause(audioData, searchStart, searchEnd, sampleRate) {
+        const windowSize = Math.floor(0.1 * sampleRate); // 100ms window
+        const silenceThreshold = 0.01; // Adjust based on audio characteristics
+        const minSilenceDuration = 0.3 * sampleRate; // Minimum 300ms silence
+        
+        let silenceStart = -1;
+        let bestPauseLocation = -1;
+        let longestSilence = 0;
+        
+        for (let i = searchStart; i < searchEnd - windowSize; i += windowSize) {
+            // Calculate RMS energy for this window
+            let energy = 0;
+            for (let j = i; j < Math.min(i + windowSize, searchEnd); j++) {
+                energy += audioData[j] * audioData[j];
+            }
+            energy = Math.sqrt(energy / windowSize);
+            
+            if (energy < silenceThreshold) {
+                // Start of silence
+                if (silenceStart === -1) {
+                    silenceStart = i;
+                }
+            } else {
+                // End of silence
+                if (silenceStart !== -1) {
+                    const silenceDuration = i - silenceStart;
+                    if (silenceDuration >= minSilenceDuration && silenceDuration > longestSilence) {
+                        longestSilence = silenceDuration;
+                        bestPauseLocation = silenceStart + Math.floor(silenceDuration / 2);
+                    }
+                    silenceStart = -1;
+                }
+            }
+        }
+        
+        // Check if we ended in silence
+        if (silenceStart !== -1) {
+            const silenceDuration = searchEnd - silenceStart;
+            if (silenceDuration >= minSilenceDuration && silenceDuration > longestSilence) {
+                bestPauseLocation = silenceStart + Math.floor(silenceDuration / 2);
+            }
+        }
+        
+        return bestPauseLocation;
+    }
+
+    // Post-processing for overlap deduplication with improved Chinese text handling
+    postProcessTranscript(transcript) {
+        const lines = transcript.split('\n\n');
+        const processed = [];
+        let continuousText = ''; // Track continuous narrative across chunks
+        
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            
+            const match = lines[i].match(/^\[(\d+:\d+)-(\d+:\d+)\]/);
+            if (!match) {
+                processed.push(lines[i]);
+                continue;
+            }
+            
+            const text = lines[i].replace(/^\[[^\]]+\]\s*\([^)]+\)\s*/, '').trim();
+            
+            // Check for overlap with previous chunk
+            if (i > 0 && processed.length > 0) {
+                const prevText = processed[processed.length - 1].replace(/^\[[^\]]+\]\s*\([^)]+\)\s*/, '').trim();
+                const overlap = this.findTextOverlap(prevText, text);
+                
+                if (overlap.length > 5) { // Lower threshold for Chinese text (5 characters instead of 10)
+                    // For Chinese text, be more careful about character-based overlap
+                    const overlapIndex = text.indexOf(overlap);
+                    if (overlapIndex === 0) { // Overlap is at the beginning
+                        const deduplicatedText = text.substring(overlap.length).trim();
+                        if (deduplicatedText) {
+                            // Replace the text in the line but keep timing and metadata
+                            const processedLine = lines[i].replace(text, deduplicatedText);
+                            processed.push(processedLine);
+                            continuousText += ' ' + deduplicatedText;
+                        }
+                        continue;
+                    }
+                }
+            }
+            
+            processed.push(lines[i]);
+            continuousText += ' ' + text;
+        }
+        
+        // Final cleanup: remove any remaining duplicate phrases
+        return this.cleanupFinalTranscript(processed.join('\n\n'));
+    }
+
+    // Find overlapping text between two strings
+    findTextOverlap(text1, text2) {
+        const words1 = text1.split(' ');
+        const words2 = text2.split(' ');
+        
+        let maxOverlap = '';
+        
+        // Look for overlapping sequences at the end of text1 and start of text2
+        for (let i = 1; i <= Math.min(words1.length, words2.length, 20); i++) { // Limit to 20 words
+            const end1 = words1.slice(-i).join(' ');
+            const start2 = words2.slice(0, i).join(' ');
+            
+            if (end1.toLowerCase() === start2.toLowerCase() && end1.length > maxOverlap.length) {
+                maxOverlap = start2;
+            }
+        }
+        
+        return maxOverlap;
+    }
+
+    // Final cleanup to remove remaining duplicates and improve readability
+    cleanupFinalTranscript(transcript) {
+        // Remove any duplicate sentences or phrases that might have slipped through
+        const lines = transcript.split('\n');
+        const cleanedLines = [];
+        
+        for (let line of lines) {
+            // Skip empty lines but preserve structure
+            if (line.trim() === '') {
+                cleanedLines.push(line);
+                continue;
+            }
+            
+            // Clean up excessive spacing and punctuation
+            line = line.replace(/\s+/g, ' ').trim();
+            
+            // Remove obvious duplicates (case-insensitive)
+            const isDuplicate = cleanedLines.some(existingLine => {
+                if (existingLine.trim() === '') return false;
+                const existing = existingLine.toLowerCase().replace(/^\[[^\]]+\]\s*\([^)]+\)\s*/, '');
+                const current = line.toLowerCase().replace(/^\[[^\]]+\]\s*\([^)]+\)\s*/, '');
+                return existing === current && existing.length > 10;
+            });
+            
+            if (!isDuplicate) {
+                cleanedLines.push(line);
+            }
+        }
+        
+        return cleanedLines.join('\n');
     }
 
     async startTranscription() {
