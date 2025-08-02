@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-08-01 21:19-0400\n"
+"POT-Creation-Date: 2025-08-01 21:32-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -49,7 +49,7 @@ msgstr ""
 msgid "Extract audio only"
 msgstr ""
 
-#: templates/index.html:324
+#: templates/index.html:324 templates/index.html:375
 msgid "Start Download"
 msgstr ""
 
@@ -57,7 +57,7 @@ msgstr ""
 msgid "Download Progress"
 msgstr ""
 
-#: templates/index.html:336
+#: templates/index.html:336 templates/index.html:378
 msgid "Preparing download..."
 msgstr ""
 
@@ -67,5 +67,53 @@ msgstr ""
 
 #: templates/index.html:361
 msgid "Refresh List"
+msgstr ""
+
+#: templates/index.html:374
+msgid "Starting Download..."
+msgstr ""
+
+#: templates/index.html:376
+msgid "Downloading..."
+msgstr ""
+
+#: templates/index.html:377
+msgid "Initializing download..."
+msgstr ""
+
+#: templates/index.html:379
+msgid "Starting download..."
+msgstr ""
+
+#: templates/index.html:380
+msgid "Processing files..."
+msgstr ""
+
+#: templates/index.html:381
+msgid "Converting to MP3... Please wait, this may take a moment"
+msgstr ""
+
+#: templates/index.html:382
+msgid "File ready for download!"
+msgstr ""
+
+#: templates/index.html:383
+msgid "File converted and ready for download!"
+msgstr ""
+
+#: templates/index.html:384
+msgid "Download session expired. Please try again."
+msgstr ""
+
+#: templates/index.html:385
+msgid "No downloads yet"
+msgstr ""
+
+#: templates/index.html:386
+msgid "Download"
+msgstr ""
+
+#: templates/index.html:387
+msgid "Download failed"
 msgstr ""
 

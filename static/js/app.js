@@ -20,7 +20,7 @@ document.getElementById('downloadForm').addEventListener('submit', async (e) => 
     successMessage.style.display = 'none';
     
     downloadBtn.disabled = true;
-    downloadBtn.textContent = 'Starting Download...';
+    downloadBtn.textContent = window.i18n.startingDownload;
     progressSection.style.display = 'block';
     startAutoRefresh(); // Start auto-refreshing the download list
     
@@ -36,7 +36,7 @@ document.getElementById('downloadForm').addEventListener('submit', async (e) => 
         if (response.ok) {
             monitorProgress(data.download_id);
         } else {
-            throw new Error(data.error || 'Download failed');
+            throw new Error(data.error || window.i18n.downloadFailed);
         }
     } catch (error) {
         errorMessage.textContent = error.message;
@@ -57,37 +57,37 @@ function monitorProgress(downloadId) {
             console.log('Checking progress:', progress);
             
             if (progress.status === 'downloading') {
-                progressText.textContent = `Downloading... ${progress.percent} (${progress.speed})`;
+                progressText.textContent = `${window.i18n.downloadingProgress} ${progress.percent} (${progress.speed})`;
                 const percentMatch = progress.percent.match(/(\d+\.?\d*)%/);
                 if (percentMatch) {
                     progressFill.style.width = percentMatch[1] + '%';
                 }
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'initializing') {
-                progressText.textContent = 'Initializing download...';
+                progressText.textContent = window.i18n.initializingDownload;
                 progressFill.style.width = '5%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'preparing') {
-                progressText.textContent = 'Preparing download...';
+                progressText.textContent = window.i18n.preparingDownload;
                 progressFill.style.width = '15%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'starting') {
-                progressText.textContent = progress.message || 'Starting download...';
+                progressText.textContent = progress.message || window.i18n.startingDownloadMsg;
                 progressFill.style.width = '25%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'processing') {
-                progressText.textContent = progress.message || 'Processing files...';
+                progressText.textContent = progress.message || window.i18n.processingFiles;
                 progressFill.style.width = '85%';
                 setTimeout(checkProgress, 1000);
             } else if (progress.status === 'converting') {
-                progressText.textContent = 'Converting to MP3... Please wait, this may take a moment';
+                progressText.textContent = window.i18n.convertingToMP3;
                 progressFill.style.width = '90%';
                 setTimeout(checkProgress, 2000); // Check less frequently during conversion
             } else if (progress.status === 'finished') {
                 console.log('Download finished, updating UI and refreshing downloads list');
                 progressFill.style.width = '100%';
-                progressText.textContent = 'File ready for download!';
-                document.getElementById('successMessage').textContent = 'File converted and ready for download!';
+                progressText.textContent = window.i18n.fileReadyForDownload;
+                document.getElementById('successMessage').textContent = window.i18n.fileConvertedReady;
                 document.getElementById('successMessage').style.display = 'block';
                 resetForm();
                 
@@ -114,7 +114,7 @@ function monitorProgress(downloadId) {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {
                 console.log('Download ID not found, stopping progress check');
-                document.getElementById('errorMessage').textContent = 'Download session expired. Please try again.';
+                document.getElementById('errorMessage').textContent = window.i18n.downloadSessionExpired;
                 document.getElementById('errorMessage').style.display = 'block';
                 resetForm();
             } else {
@@ -132,7 +132,7 @@ function monitorProgress(downloadId) {
 
 function resetForm() {
     document.getElementById('downloadBtn').disabled = false;
-    document.getElementById('downloadBtn').textContent = 'Start Download';
+    document.getElementById('downloadBtn').textContent = window.i18n.startDownload;
     document.getElementById('progressSection').style.display = 'none';
     document.getElementById('progressFill').style.width = '0%';
     stopAutoRefresh(); // Stop auto-refreshing when download is done
@@ -159,7 +159,7 @@ async function loadDownloads() {
         
         if (files.length === 0) {
             console.log(`[${timestamp}] No files found, showing empty message`);
-            downloadsList.innerHTML = '<li style="text-align: center; color: #666; padding: 20px;">No downloads yet</li>';
+            downloadsList.innerHTML = `<li style="text-align: center; color: #666; padding: 20px;">${window.i18n.noDownloadsYet}</li>`;
         } else {
             console.log(`[${timestamp}] Displaying ${files.length} files:`, files.map(f => f.name));
             files.forEach(file => {
@@ -170,7 +170,7 @@ async function loadDownloads() {
                         <div class="download-item-name">${file.name}</div>
                         <div class="download-item-size">${formatFileSize(file.size)}</div>
                     </div>
-                    <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link">Download</a>
+                    <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link">${window.i18n.download}</a>
                 `;
                 downloadsList.appendChild(li);
             });

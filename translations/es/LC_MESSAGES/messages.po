@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-08-01 21:19-0400\n"
+"POT-Creation-Date: 2025-08-01 21:32-0400\n"
 "PO-Revision-Date: 2025-08-01 21:19-0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -50,7 +50,7 @@ msgstr "Audio (MP3)"
 msgid "Extract audio only"
 msgstr "Extraer solo el audio"
 
-#: templates/index.html:324
+#: templates/index.html:324 templates/index.html:375
 msgid "Start Download"
 msgstr "Iniciar Descarga"
 
@@ -58,7 +58,7 @@ msgstr "Iniciar Descarga"
 msgid "Download Progress"
 msgstr "Progreso de Descarga"
 
-#: templates/index.html:336
+#: templates/index.html:336 templates/index.html:378
 msgid "Preparing download..."
 msgstr "Preparando descarga..."
 
@@ -69,4 +69,52 @@ msgstr "Archivos Descargados"
 #: templates/index.html:361
 msgid "Refresh List"
 msgstr "Actualizar Lista"
+
+#: templates/index.html:374
+msgid "Starting Download..."
+msgstr "Iniciando Descarga..."
+
+#: templates/index.html:376
+msgid "Downloading..."
+msgstr "Descargando..."
+
+#: templates/index.html:377
+msgid "Initializing download..."
+msgstr "Inicializando descarga..."
+
+#: templates/index.html:379
+msgid "Starting download..."
+msgstr "Iniciando descarga..."
+
+#: templates/index.html:380
+msgid "Processing files..."
+msgstr "Procesando archivos..."
+
+#: templates/index.html:381
+msgid "Converting to MP3... Please wait, this may take a moment"
+msgstr "Convirtiendo a MP3... Por favor espera, esto puede tomar un momento"
+
+#: templates/index.html:382
+msgid "File ready for download!"
+msgstr "¡Archivo listo para descargar!"
+
+#: templates/index.html:383
+msgid "File converted and ready for download!"
+msgstr "¡Archivo convertido y listo para descargar!"
+
+#: templates/index.html:384
+msgid "Download session expired. Please try again."
+msgstr "Sesión de descarga expirada. Intenta de nuevo."
+
+#: templates/index.html:385
+msgid "No downloads yet"
+msgstr "Aún no hay descargas"
+
+#: templates/index.html:386
+msgid "Download"
+msgstr "Descargar"
+
+#: templates/index.html:387
+msgid "Download failed"
+msgstr "Descarga fallida"
 
