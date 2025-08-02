@@ -250,3 +250,11 @@ msgstr "复制到剪贴板"
 msgid "Download as TXT"
 msgstr "下载为TXT"
 
+#: templates/index.html:356
+msgid "Note"
+msgstr "注意"
+
+#: templates/index.html:356
+msgid "To use transcription, please first download an audio file (MP3) from YouTube using the download section above. Then select the audio file from the list below to transcribe it to text."
+msgstr "要使用转录功能，请先使用上面的下载部分从YouTube下载音频文件（MP3）。然后从下面的列表中选择音频文件进行文本转录。"
+

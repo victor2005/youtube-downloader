@@ -351,6 +351,12 @@
             <!-- Transcription Section -->
             <div class="transcription-section" id="transcriptionSection" style="display: none;">
                 <h3>🎤 {{ _('Audio Transcription with Whisper AI') }}</h3>
+                <div class="info-message" style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 15px 0; color: #1565c0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">💡</span>
+                        <span><strong>{{ _('Note') }}:</strong> {{ _('To use transcription, please first download an audio file (MP3) from YouTube using the download section above. Then select the audio file from the list below to transcribe it to text.') }}</span>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
                     <select id="audioFileSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
