@@ -140,9 +140,9 @@ class TranscriptionManager {
                 break;
                 
             case 'chunkStart':
-                const { chunkIndex, totalChunks } = message;
-                const timeStart = (chunkIndex * 8); // 8-second chunks
-                const timeEnd = Math.min((chunkIndex + 1) * 8, this.audioDuration);
+                const { chunkIndex, totalChunks, chunkDuration = 30 } = message;
+                const timeStart = (chunkIndex * (chunkDuration - 5)); // Account for overlap
+                const timeEnd = Math.min(timeStart + chunkDuration, this.audioDuration);
                 
                 this.updateStatus(`🔄 Processing [${this.formatTime(timeStart)}-${this.formatTime(timeEnd)}] (${chunkIndex + 1}/${totalChunks})`, 
                     80 + ((chunkIndex + 1) / totalChunks) * 18);
@@ -457,11 +457,13 @@ class TranscriptionManager {
     }
 
     async streamingTranscribeWithWorker(audioData, language, durationSeconds) {
-        // Use 8-second chunks for optimal worker performance
-        const chunkDuration = 8;
+        // Use 30-second chunks with overlap for better accuracy and context
+        const chunkDuration = 30; // Longer chunks for better context
+        const overlapDuration = 5; // 5-second overlap between chunks
         const sampleRate = 16000;
         const samplesPerChunk = chunkDuration * sampleRate;
-        const totalChunks = Math.ceil(audioData.length / samplesPerChunk);
+        const overlapSamples = overlapDuration * sampleRate;
+        const totalChunks = Math.ceil(audioData.length / (samplesPerChunk - overlapSamples));
         
         this.totalChunks = totalChunks;
         this.elements.transcriptText.textContent = '🎙️ Starting transcription...\n\n';
@@ -476,11 +478,12 @@ class TranscriptionManager {
             options.language = language;
         }
         
-        // Process chunks in the worker
+        // Process chunks in the worker with overlap
         const chunkPromises = [];
         
         for (let i = 0; i < totalChunks; i++) {
-            const startSample = i * samplesPerChunk;
+            // Calculate chunk boundaries with overlap
+            const startSample = i * (samplesPerChunk - overlapSamples);
             const endSample = Math.min(startSample + samplesPerChunk, audioData.length);
             const chunk = audioData.slice(startSample, endSample);
             
@@ -491,7 +494,9 @@ class TranscriptionManager {
                     audioData: chunk,
                     options,
                     chunkIndex: i,
-                    totalChunks
+                    totalChunks,
+                    chunkDuration: 30,
+                    overlapDuration: 5
                 }
             });
         }
