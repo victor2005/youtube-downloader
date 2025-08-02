@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ get_locale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Downloader</title>
+    <title>{{ _('YouTube Downloader') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="preload" href="{{ url_for('static', filename='js/app.js') }}" as="script">
     
@@ -269,8 +269,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎬 YouTube Downloader</h1>
-            <p>Download videos or extract MP3 audio from YouTube</p>
+            <div class="language-selector" style="position: absolute; top: 20px; right: 20px;">
+                <select onchange="changeLanguage(this.value)" style="padding: 5px 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                    {% for code, name in languages.items() %}
+                        <option value="{{ code }}" {% if get_locale() == code %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <h1>🎬 {{ _('YouTube Downloader') }}</h1>
+            <p>{{ _('Download videos or extract MP3 audio from YouTube') }}</p>
         </div>
         
         <div class="content">
@@ -293,28 +300,28 @@
             
             <form id="downloadForm">
                 <div class="form-group">
-                    <label for="url">YouTube URL:</label>
+                    <label for="url">{{ _('YouTube URL') }}:</label>
                     <input type="url" id="url" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
                 </div>
                 
                 <div class="form-group">
-                    <label>Download Format:</label>
+                    <label>{{ _('Download Format') }}:</label>
                     <div class="format-selection">
                         <div class="format-option selected" data-format="video">
                             <input type="radio" name="format" value="video" checked>
-                            <div>🎬 Video (MP4)</div>
-                            <small>Download full video</small>
+                            <div>🎬 {{ _('Video (MP4)') }}</div>
+                            <small>{{ _('Download full video') }}</small>
                         </div>
                         <div class="format-option" data-format="mp3">
                             <input type="radio" name="format" value="mp3">
-                            <div>🎵 Audio (MP3)</div>
-                            <small>Extract audio only</small>
+                            <div>🎵 {{ _('Audio (MP3)') }}</div>
+                            <small>{{ _('Extract audio only') }}</small>
                         </div>
                     </div>
                 </div>
                 
                 <button type="submit" class="download-btn" id="downloadBtn">
-                    Start Download
+                    {{ _('Start Download') }}
                 </button>
             </form>
             
@@ -322,11 +329,11 @@
             <div class="success-message" id="successMessage"></div>
             
             <div class="progress-section" id="progressSection">
-                <h3>Download Progress</h3>
+                <h3>{{ _('Download Progress') }}</h3>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
-                <div id="progressText">Preparing download...</div>
+                <div id="progressText">{{ _('Preparing download...') }}</div>
             </div>
             
             <!-- Side Rectangle Ad -->
@@ -347,11 +354,11 @@
             </div>
             
             <div class="downloads-section">
-                <h3>Downloaded Files</h3>
+                <h3>{{ _('Downloaded Files') }}</h3>
                 <ul class="downloads-list" id="downloadsList">
                     <!-- Downloaded files will appear here -->
                 </ul>
-                <button type="button" onclick="loadDownloads()" style="margin-top: 10px; padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 Refresh List</button>
+                <button type="button" onclick="loadDownloads()" style="margin-top: 10px; padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 {{ _('Refresh List') }}</button>
             </div>
             
             <!-- Bottom Banner Ad -->
@@ -362,6 +369,13 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+    
+    <!-- Language switching function -->
+    <script>
+        function changeLanguage(lang) {
+            window.location.href = '/set_language/' + lang;
+        }
+    </script>
     
     <!-- Debug Monetag ads -->
     <script>

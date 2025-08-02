@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, send_file, session
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
+from flask_babel import Babel, gettext, get_locale
 import yt_dlp
 import os
 import tempfile
@@ -19,6 +20,31 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Configure Babel
+babel = Babel()
+babel.init_app(app)
+app.config['LANGUAGES'] = {
+    'en': 'English',
+    'es': 'Español', 
+    'zh': '中文'
+}
+app.config['BABEL_DEFAULT_LOCALE'] = 'en'
+app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'
+
+def get_locale():
+    # 1. Check if user explicitly selected a language
+    if 'language' in session:
+        return session['language']
+    # 2. Try to guess the language from the user accept header
+    return request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or 'en'
+
+babel.init_app(app, locale_selector=get_locale)
+
+# Make get_locale available in templates
+@app.context_processor
+def inject_conf_vars():
+    return {'get_locale': get_locale}
 
 # Add cache headers for static content
 @app.after_request
@@ -124,7 +150,13 @@ def index():
     else:
         logging.info(f"Index page: Using existing session with user_id: {session['user_id']}")
     
-    return render_template('index.html')
+    return render_template('index.html', languages=app.config['LANGUAGES'])
+
+@app.route('/set_language/<language>')
+def set_language(language=None):
+    if language in app.config['LANGUAGES']:
+        session['language'] = language
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/health')
 def health_check():

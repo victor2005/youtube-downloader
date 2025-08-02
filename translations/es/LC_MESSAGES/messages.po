@@ -1,0 +1,72 @@
+# Spanish translations for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-08-01 21:19-0400\n"
+"PO-Revision-Date: 2025-08-01 21:19-0400\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: templates/index.html:6 templates/index.html:279
+msgid "YouTube Downloader"
+msgstr "Descargador de YouTube"
+
+#: templates/index.html:280
+msgid "Download videos or extract MP3 audio from YouTube"
+msgstr "Descarga videos o extrae audio MP3 de YouTube"
+
+#: templates/index.html:303
+msgid "YouTube URL"
+msgstr "URL de YouTube"
+
+#: templates/index.html:308
+msgid "Download Format"
+msgstr "Formato de Descarga"
+
+#: templates/index.html:312
+msgid "Video (MP4)"
+msgstr "Video (MP4)"
+
+#: templates/index.html:313
+msgid "Download full video"
+msgstr "Descargar video completo"
+
+#: templates/index.html:317
+msgid "Audio (MP3)"
+msgstr "Audio (MP3)"
+
+#: templates/index.html:318
+msgid "Extract audio only"
+msgstr "Extraer solo el audio"
+
+#: templates/index.html:324
+msgid "Start Download"
+msgstr "Iniciar Descarga"
+
+#: templates/index.html:332
+msgid "Download Progress"
+msgstr "Progreso de Descarga"
+
+#: templates/index.html:336
+msgid "Preparing download..."
+msgstr "Preparando descarga..."
+
+#: templates/index.html:357
+msgid "Downloaded Files"
+msgstr "Archivos Descargados"
+
+#: templates/index.html:361
+msgid "Refresh List"
+msgstr "Actualizar Lista"
+
