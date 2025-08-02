@@ -3,6 +3,20 @@ document.querySelectorAll('.format-option').forEach(option => {
         document.querySelectorAll('.format-option').forEach(opt => opt.classList.remove('selected'));
         option.classList.add('selected');
         option.querySelector('input[type="radio"]').checked = true;
+        
+        // Show/hide transcription section based on selected format
+        const transcriptionSection = document.getElementById('transcriptionSection');
+        const format = option.getAttribute('data-format');
+        
+        if (format === 'transcribe') {
+            transcriptionSection.style.display = 'block';
+            // Load available audio files when transcription is selected
+            if (window.transcriptionManager) {
+                window.transcriptionManager.loadAvailableAudioFiles();
+            }
+        } else {
+            transcriptionSection.style.display = 'none';
+        }
     });
 });
 
@@ -210,3 +224,24 @@ function stopAutoRefresh() {
 }
 
 loadDownloads();
+
+// Global functions for transcription (called from HTML)
+window.startTranscription = function() {
+    if (window.transcriptionManager) {
+        window.transcriptionManager.startTranscription();
+    } else {
+        console.error('Transcription manager not loaded');
+    }
+};
+
+window.copyTranscription = function() {
+    if (window.transcriptionManager) {
+        window.transcriptionManager.copyTranscriptionToClipboard();
+    }
+};
+
+window.downloadTranscription = function() {
+    if (window.transcriptionManager) {
+        window.transcriptionManager.downloadTranscriptionAsText();
+    }
+};

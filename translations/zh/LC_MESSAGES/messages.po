@@ -118,3 +118,135 @@ msgstr "下载"
 msgid "Download failed"
 msgstr "下载失败"
 
+#: templates/index.html:389
+msgid "Audio Transcription with Whisper AI"
+msgstr "使用Whisper AI进行音频转录"
+
+#: templates/index.html:390
+msgid "Select Audio File:"
+msgstr "选择音频文件："
+
+#: templates/index.html:391
+msgid "Choose an audio file..."
+msgstr "选择音频文件..."
+
+#: templates/index.html:392
+msgid "No audio files available"
+msgstr "没有可用的音频文件"
+
+#: templates/index.html:393
+msgid "Whisper Model:"
+msgstr "Whisper模型："
+
+#: templates/index.html:394
+msgid "Language:"
+msgstr "语言："
+
+#: templates/index.html:395
+msgid "Start Transcription"
+msgstr "开始转录"
+
+#: templates/index.html:396
+msgid "Stop Transcription"
+msgstr "停止转录"
+
+#: templates/index.html:397
+msgid "Loading AI model..."
+msgstr "正在加载AI模型..."
+
+#: templates/index.html:398
+msgid "Model loaded successfully"
+msgstr "模型加载成功"
+
+#: templates/index.html:399
+msgid "Starting transcription..."
+msgstr "正在开始转录..."
+
+#: templates/index.html:400
+msgid "Transcribing audio..."
+msgstr "正在转录音频..."
+
+#: templates/index.html:401
+msgid "Transcription completed!"
+msgstr "转录完成！"
+
+#: templates/index.html:402
+msgid "Error loading audio file"
+msgstr "加载音频文件时出错"
+
+#: templates/index.html:403
+msgid "Error loading AI model"
+msgstr "加载AI模型时出错"
+
+#: templates/index.html:404
+msgid "Error during transcription"
+msgstr "转录过程中出错"
+
+#: templates/index.html:405
+msgid "Transcription was cancelled"
+msgstr "转录已取消"
+
+#: templates/index.html:406
+msgid "Transcribe"
+msgstr "转录"
+
+#: templates/index.html:407
+msgid "Convert speech to text"
+msgstr "将语音转换为文本"
+
+#: templates/index.html:355
+msgid "Select Audio File"
+msgstr "选择音频文件"
+
+#: templates/index.html:362
+msgid "Whisper Model"
+msgstr "Whisper模型"
+
+#: templates/index.html:372
+msgid "Language"
+msgstr "语言"
+
+#: templates/index.html:357
+msgid "Loading available files..."
+msgstr "正在加载可用文件..."
+
+#: templates/index.html:364
+msgid "Fastest"
+msgstr "最快"
+
+#: templates/index.html:365
+msgid "Balanced"
+msgstr "平衡"
+
+#: templates/index.html:366
+msgid "Better Quality"
+msgstr "更好的质量"
+
+#: templates/index.html:367
+msgid "High Quality"
+msgstr "高质量"
+
+#: templates/index.html:374
+msgid "Auto-detect"
+msgstr "自动检测"
+
+#: templates/index.html:393
+msgid "Transcription Progress"
+msgstr "转录进度"
+
+#: templates/index.html:397
+msgid "Loading model..."
+msgstr "正在加载模型..."
+
+#: templates/index.html:401
+msgid "Transcription Result"
+msgstr "转录结果"
+
+#: templates/index.html:406
+msgid "Copy to Clipboard"
+msgstr "复制到剪贴板"
+
+#: templates/index.html:407
+msgid "Download as TXT"
+msgstr "下载为TXT"
+

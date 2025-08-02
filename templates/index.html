@@ -301,18 +301,23 @@
                 
                 <div class="form-group">
                     <label>{{ _('Download Format') }}:</label>
-                    <div class="format-selection">
-                        <div class="format-option selected" data-format="video">
-                            <input type="radio" name="format" value="video" checked>
-                            <div>🎬 {{ _('Video (MP4)') }}</div>
-                            <small>{{ _('Download full video') }}</small>
-                        </div>
-                        <div class="format-option" data-format="mp3">
-                            <input type="radio" name="format" value="mp3">
-                            <div>🎵 {{ _('Audio (MP3)') }}</div>
-                            <small>{{ _('Extract audio only') }}</small>
-                        </div>
+                <div class="format-selection">
+                    <div class="format-option selected" data-format="video">
+                        <input type="radio" name="format" value="video" checked>
+                        <div>🎬 {{ _('Video (MP4)') }}</div>
+                        <small>{{ _('Download full video') }}</small>
                     </div>
+                    <div class="format-option" data-format="mp3">
+                        <input type="radio" name="format" value="mp3">
+                        <div>🎵 {{ _('Audio (MP3)') }}</div>
+                        <small>{{ _('Extract audio only') }}</small>
+                    </div>
+                    <div class="format-option" data-format="transcribe">
+                        <input type="radio" name="format" value="transcribe">
+                        <div>🎤 {{ _('Transcribe') }}</div>
+                        <small>{{ _('Convert speech to text') }}</small>
+                    </div>
+                </div>
                 </div>
                 
                 <button type="submit" class="download-btn" id="downloadBtn">
@@ -343,6 +348,67 @@
                 document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9655935/invoke.js"></scr' + 'ipt>');
             </script>
             
+            <!-- Transcription Section -->
+            <div class="transcription-section" id="transcriptionSection" style="display: none;">
+                <h3>🎤 {{ _('Audio Transcription with Whisper AI') }}</h3>
+                <div class="form-group">
+                    <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
+                    <select id="audioFileSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="">{{ _('Loading available files...') }}</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modelSelect">{{ _('Whisper Model') }}:</label>
+                    <select id="modelSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="Xenova/whisper-tiny">Whisper Tiny (39MB) - {{ _('Fastest') }}</option>
+                        <option value="Xenova/whisper-base" selected>Whisper Base (74MB) - {{ _('Balanced') }}</option>
+                        <option value="Xenova/whisper-small">Whisper Small (244MB) - {{ _('Better Quality') }}</option>
+                        <option value="Xenova/whisper-medium">Whisper Medium (769MB) - {{ _('High Quality') }}</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="languageSelect">{{ _('Language') }}:</label>
+                    <select id="languageSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="auto">{{ _('Auto-detect') }}</option>
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                        <option value="it">Italiano</option>
+                        <option value="pt">Português</option>
+                        <option value="ru">Русский</option>
+                        <option value="ja">日本語</option>
+                        <option value="ko">한국어</option>
+                        <option value="zh">中文</option>
+                    </select>
+                </div>
+                
+                <button type="button" id="transcribeBtn" class="download-btn" onclick="startTranscription()">
+                    🎤 {{ _('Start Transcription') }}
+                </button>
+                
+                <div class="progress-section" id="transcriptionProgress" style="display: none;">
+                    <h4>{{ _('Transcription Progress') }}</h4>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="transcriptionProgressFill"></div>
+                    </div>
+                    <div id="transcriptionProgressText">{{ _('Loading model...') }}</div>
+                </div>
+                
+                <div class="transcription-result" id="transcriptionResult" style="display: none;">
+                    <h4>{{ _('Transcription Result') }}</h4>
+                    <div style="background: white; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; margin: 10px 0; max-height: 300px; overflow-y: auto;">
+                        <div id="transcriptionText" style="white-space: pre-wrap; font-family: monospace;"></div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="button" onclick="copyTranscription()" style="padding: 8px 15px; background: #51cf66; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📋 {{ _('Copy to Clipboard') }}</button>
+                        <button type="button" onclick="downloadTranscription()" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">💾 {{ _('Download as TXT') }}</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="downloads-section">
                 <h3>{{ _('Downloaded Files') }}</h3>
                 <ul class="downloads-list" id="downloadsList">
@@ -370,11 +436,45 @@
             'downloadSessionExpired': '{{ _("Download session expired. Please try again.") }}',
             'noDownloadsYet': '{{ _("No downloads yet") }}',
             'download': '{{ _("Download") }}',
-            'downloadFailed': '{{ _("Download failed") }}'
+            'downloadFailed': '{{ _("Download failed") }}',
+            // Transcription translations
+            'startTranscription': '{{ _("🎤 Start Transcription") }}',
+            'transcribing': '{{ _("🔄 Transcribing...") }}',
+            'loadingAIModel': '{{ _("Loading AI model...") }}',
+            'initializingWhisperModel': '{{ _("Initializing Whisper model...") }}',
+            'downloadingModel': '{{ _("Downloading model...") }}',
+            'modelLoaded': '{{ _("Model loaded successfully") }}',
+            'modelLoadedCPU': '{{ _("Model loaded (CPU mode)") }}',
+            'loadingAudioFile': '{{ _("Loading audio file...") }}',
+            'processingAudio': '{{ _("Processing audio...") }}',
+            'decodingAudioFile': '{{ _("Decoding audio file...") }}',
+            'convertingToMono': '{{ _("Converting to mono...") }}',
+            'resamplingTo16kHz': '{{ _("Resampling to 16kHz...") }}',
+            'audioProcessedSuccessfully': '{{ _("Audio processed successfully") }}',
+            'preparingTranscription': '{{ _("Preparing transcription...") }}',
+            'transcribingAudio': '{{ _("Transcribing") }}', // Used in "Transcribing 45s of audio..."
+            'secondsOfAudio': '{{ _("s of audio...") }}',
+            'startingTranscriptionMsg': '{{ _("🎙️ Starting transcription...") }}',
+            'processing': '{{ _("🔄 Processing") }}', // Used in "🔄 Processing [0:00-0:08] (1/5)"
+            'nextChunkLoading': '{{ _("⏳ Next chunk loading...") }}',
+            'transcriptionComplete': '{{ _("✅ Transcription complete!") }}',
+            'silentSegment': '{{ _("[Silent segment]") }}',
+            'initializingTranscription': '{{ _("Initializing transcription...") }}',
+            'selectAudioFileFirst': '{{ _("Please select an audio file first.") }}',
+            'transcriptionFailed': '{{ _("Transcription failed") }}',
+            'error': '{{ _("Error") }}',
+            'noTranscriptToCopy': '{{ _("No transcript to copy") }}',
+            'transcriptCopied': '{{ _("Transcript copied to clipboard!") }}',
+            'failedToCopyTranscript': '{{ _("Failed to copy transcript to clipboard") }}',
+            'noTranscriptToDownload': '{{ _("No transcript to download") }}',
+            'chooseAudioFile': '{{ _("Choose an audio file...") }}',
+            'noAudioFilesAvailable': '{{ _("No audio files available") }}',
+            'loadingAvailableFiles': '{{ _("Loading available files...") }}'
         };
     </script>
     
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/transcription.js') }}" defer></script>
     
     <!-- Language switching function -->
     <script>
