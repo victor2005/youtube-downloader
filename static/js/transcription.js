@@ -352,43 +352,59 @@ class TranscriptionManager {
             // Step 1: Decode audio
             this.updateStatus('Decoding audio file...', 71);
             
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // Use a more conservative AudioContext configuration
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: 16000, // Target sample rate to reduce processing
+                latencyHint: 'playback' // Optimize for efficiency over low latency
+            });
+            
+            // Set a timeout for the entire audio processing
+            const processingTimeout = setTimeout(() => {
+                audioContext.close();
+                reject(new Error('Audio processing timed out - file may be too large or corrupted'));
+            }, 30000); // 30 second timeout
             
             audioContext.decodeAudioData(arrayBuffer)
                 .then(audioBuffer => {
+                    
                     this.updateStatus('Converting to mono...', 72);
                     
-                    // Step 2: Convert to mono (non-blocking)
-                    setTimeout(() => {
-                        try {
-                            const monoData = this.convertToMonoChunked(audioBuffer);
-                            
+                    // Step 2: Convert to mono with smaller chunks and progress updates
+                    this.convertToMonoAsync(audioBuffer)
+                        .then(monoData => {
                             this.updateStatus('Resampling to 16kHz...', 74);
                             
-                            // Step 3: Resample if needed (non-blocking)
-                            setTimeout(() => {
-                                try {
-                                    const targetSampleRate = 16000;
-                                    let finalAudioData;
-                                    
-                                    if (audioBuffer.sampleRate !== targetSampleRate) {
-                                        finalAudioData = this.resampleAudioChunked(monoData, audioBuffer.sampleRate, targetSampleRate);
-                                    } else {
-                                        finalAudioData = monoData;
-                                    }
-                                    
-                                    this.updateStatus('Audio processed successfully', 75);
-                                    resolve(finalAudioData);
-                                } catch (error) {
-                                    reject(error);
-                                }
-                            }, 10);
-                        } catch (error) {
+                            // Step 3: Resample if needed
+                            const targetSampleRate = 16000;
+                            if (audioBuffer.sampleRate !== targetSampleRate) {
+                                this.resampleAudioAsync(monoData, audioBuffer.sampleRate, targetSampleRate)
+                                    .then(finalAudioData => {
+                                        clearTimeout(processingTimeout);
+                                        audioContext.close();
+                                        this.updateStatus('Audio processed successfully', 75);
+                                        resolve(finalAudioData);
+                                    })
+                                    .catch(error => {
+                                        clearTimeout(processingTimeout);
+                                        audioContext.close();
+                                        reject(error);
+                                    });
+                            } else {
+                                clearTimeout(processingTimeout);
+                                audioContext.close();
+                                this.updateStatus('Audio processed successfully', 75);
+                                resolve(monoData);
+                            }
+                        })
+                        .catch(error => {
+                            clearTimeout(processingTimeout);
+                            audioContext.close();
                             reject(error);
-                        }
-                    }, 10);
+                        });
                 })
                 .catch(error => {
+                    clearTimeout(processingTimeout);
+                    audioContext.close();
                     reject(new Error(`Failed to decode audio: ${error.message}`));
                 });
         });
@@ -675,6 +691,43 @@ class TranscriptionManager {
         return monoData;
     }
 
+    async convertToMonoAsync(audioBuffer) {
+        // Async version that processes in chunks with progress updates
+        if (audioBuffer.numberOfChannels === 1) {
+            return audioBuffer.getChannelData(0);
+        }
+        
+        const length = audioBuffer.length;
+        const monoData = new Float32Array(length);
+        const chunkSize = 88200; // Process 2 seconds at a time at 44.1kHz
+        const totalChunks = Math.ceil(length / chunkSize);
+        
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * chunkSize;
+            const end = Math.min(start + chunkSize, length);
+            
+            // Process this chunk
+            for (let i = start; i < end; i++) {
+                let sum = 0;
+                for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+                    sum += audioBuffer.getChannelData(channel)[i];
+                }
+                monoData[i] = sum / audioBuffer.numberOfChannels;
+            }
+            
+            // Update progress and yield control
+            const progress = 72 + (chunkIndex / totalChunks) * 1;
+            this.updateStatus(`Converting to mono... ${Math.round((chunkIndex / totalChunks) * 100)}%`, progress);
+            
+            // Yield control to prevent blocking
+            if (chunkIndex < totalChunks - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1));
+            }
+        }
+        
+        return monoData;
+    }
+
     convertToMonoChunked(audioBuffer) {
         // Non-blocking version that processes in smaller chunks
         if (audioBuffer.numberOfChannels === 1) {
@@ -723,6 +776,45 @@ class TranscriptionManager {
             // Linear interpolation
             resampledData[i] = sourceData[sourceIndexFloor] * (1 - fraction) + 
                               sourceData[sourceIndexCeil] * fraction;
+        }
+        
+        return resampledData;
+    }
+
+    async resampleAudioAsync(sourceData, sourceSampleRate, targetSampleRate) {
+        // Async version of resampling that processes in chunks with progress updates
+        const ratio = sourceSampleRate / targetSampleRate;
+        const sourceLength = sourceData.length;
+        const targetLength = Math.round(sourceLength / ratio);
+        const resampledData = new Float32Array(targetLength);
+        
+        const chunkSize = Math.round(32000); // Process ~2 seconds at 16kHz at a time
+        const totalChunks = Math.ceil(targetLength / chunkSize);
+        
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const targetStart = chunkIndex * chunkSize;
+            const targetEnd = Math.min(targetStart + chunkSize, targetLength);
+            
+            // Process this chunk
+            for (let i = targetStart; i < targetEnd; i++) {
+                const sourceIndex = i * ratio;
+                const sourceIndexFloor = Math.floor(sourceIndex);
+                const sourceIndexCeil = Math.min(sourceIndexFloor + 1, sourceLength - 1);
+                const fraction = sourceIndex - sourceIndexFloor;
+                
+                // Linear interpolation
+                resampledData[i] = sourceData[sourceIndexFloor] * (1 - fraction) + 
+                                  sourceData[sourceIndexCeil] * fraction;
+            }
+            
+            // Update progress and yield control
+            const progress = 74 + (chunkIndex / totalChunks) * 1;
+            this.updateStatus(`Resampling to 16kHz... ${Math.round((chunkIndex / totalChunks) * 100)}%`, progress);
+            
+            // Yield control to prevent blocking
+            if (chunkIndex < totalChunks - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1));
+            }
         }
         
         return resampledData;

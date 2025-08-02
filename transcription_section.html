@@ -1,0 +1,206 @@
+<!-- Transcription Section to be integrated into templates/index.html -->
+<div class="transcription-section" id="transcriptionSection" style="display: none;">
+    <h3>🎤 {{ _('Audio Transcription') }}</h3>
+    <p>{{ _('Transcribe audio files to text using AI-powered speech recognition') }}</p>
+    
+    <div class="transcription-controls">
+        <div class="form-group">
+            <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
+            <select id="audioFileSelect" class="form-control">
+                <option value="">{{ _('Choose an audio file...') }}</option>
+            </select>
+        </div>
+        
+        <div class="transcription-options">
+            <div class="option-group">
+                <label for="modelSelect">{{ _('Model') }}:</label>
+                <select id="modelSelect" class="form-control">
+                    <option value="tiny">Whisper Tiny (39MB) - {{ _('Fastest') }}</option>
+                    <option value="base" selected>Whisper Base (74MB) - {{ _('Balanced') }}</option>
+                    <option value="small">Whisper Small (244MB) - {{ _('Better Quality') }}</option>
+                </select>
+            </div>
+            
+            <div class="option-group">
+                <label for="languageSelect">{{ _('Language') }}:</label>
+                <select id="languageSelect" class="form-control">
+                    <option value="auto">{{ _('Auto-detect') }}</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Português</option>
+                    <option value="ru">Русский</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                    <option value="zh">中文</option>
+                    <option value="ar">العربية</option>
+                    <option value="hi">हिन्दी</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="button" id="transcribeBtn" class="transcribe-btn">
+            🎤 {{ _('Start Transcription') }}
+        </button>
+    </div>
+    
+    <div class="transcription-progress" id="transcriptionProgress" style="display: none;">
+        <div class="progress-info">
+            <span id="transcriptionStatus">{{ _('Initializing...') }}</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="transcriptionProgressFill"></div>
+        </div>
+    </div>
+    
+    <div class="transcription-result" id="transcriptionResult" style="display: none;">
+        <h4>{{ _('Transcription Result') }}</h4>
+        <div class="transcript-text" id="transcriptText"></div>
+        <div class="transcript-actions">
+            <button type="button" id="copyTranscriptBtn" class="action-btn">
+                📋 {{ _('Copy to Clipboard') }}
+            </button>
+            <button type="button" id="downloadTranscriptBtn" class="action-btn">
+                💾 {{ _('Download as Text') }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- CSS Styles for Transcription -->
+<style>
+.transcription-section {
+    margin-top: 30px;
+    padding: 25px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 2px solid #e9ecef;
+}
+
+.transcription-section h3 {
+    color: #495057;
+    margin-bottom: 10px;
+    font-size: 1.4em;
+}
+
+.transcription-section p {
+    color: #6c757d;
+    margin-bottom: 20px;
+    font-size: 0.95em;
+}
+
+.transcription-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.option-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.transcribe-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.transcribe-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.transcribe-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.transcription-progress {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.transcription-result {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.transcription-result h4 {
+    color: #495057;
+    margin-bottom: 15px;
+}
+
+.transcript-text {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    min-height: 100px;
+    font-family: 'Courier New', monospace;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-bottom: 15px;
+}
+
+.transcript-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    padding: 8px 16px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.action-btn:hover {
+    background: #5a6268;
+}
+
+@media (max-width: 768px) {
+    .transcription-options {
+        grid-template-columns: 1fr;
+    }
+    
+    .transcript-actions {
+        flex-direction: column;
+    }
+}
+</style>
