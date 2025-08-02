@@ -53,8 +53,10 @@ class TranscriptionManager {
 
     async loadAvailableAudioFiles() {
         try {
-            const response = await fetch('/downloads');
+            console.log('Loading available audio files for transcription...');
+            const response = await fetch('/downloads?t=' + Date.now());
             const files = await response.json();
+            console.log('Files fetched from API:', files);
             
             // Filter audio files
             const audioFiles = files.filter(file => 
@@ -62,26 +64,32 @@ class TranscriptionManager {
                     file.name.toLowerCase().endsWith(format)
                 )
             );
+            console.log('Filtered audio files:', audioFiles);
+            console.log('Supported formats:', this.supportedFormats);
 
             // Populate dropdown
             this.elements.audioFileSelect.innerHTML = `<option value="">${window.i18n?.chooseAudioFile || 'Choose an audio file...'}</option>`;
             
             if (audioFiles.length === 0) {
+                console.log('No audio files found, showing "No audio files available" message');
                 const option = document.createElement('option');
                 option.value = '';
                 option.textContent = window.i18n?.noAudioFilesAvailable || 'No audio files available';
                 option.disabled = true;
                 this.elements.audioFileSelect.appendChild(option);
             } else {
+                console.log(`Adding ${audioFiles.length} audio files to dropdown`);
                 audioFiles.forEach(file => {
                     const option = document.createElement('option');
                     option.value = file.name;
                     option.textContent = `${file.name} (${this.formatFileSize(file.size)})`;
                     this.elements.audioFileSelect.appendChild(option);
+                    console.log('Added audio file to dropdown:', file.name);
                 });
             }
 
             this.updateTranscribeButtonState();
+            console.log('Audio file loading completed');
         } catch (error) {
             console.error('Failed to load audio files:', error);
         }
@@ -812,9 +820,12 @@ if (document.readyState === 'loading') {
 function initializeTranscription() {
     // Only initialize if elements exist
     if (document.getElementById('transcriptionSection')) {
+        console.log('Initializing TranscriptionManager...');
         transcriptionManager = new TranscriptionManager();
         window.transcriptionManager = transcriptionManager;
+        console.log('TranscriptionManager initialized successfully');
     } else {
+        console.log('Transcription section not found, retrying...');
         // Retry after a short delay if elements don't exist yet
         setTimeout(initializeTranscription, 100);
     }
