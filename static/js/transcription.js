@@ -705,44 +705,75 @@ class TranscriptionManager {
     }
 
     async convertToMonoAsync(audioBuffer) {
-        // Simplified async version that processes efficiently
+        // Use a more efficient approach with requestIdleCallback for better performance
         if (audioBuffer.numberOfChannels === 1) {
             return audioBuffer.getChannelData(0);
         }
         
         const length = audioBuffer.length;
         const monoData = new Float32Array(length);
+        const numberOfChannels = audioBuffer.numberOfChannels;
         
-        // Process in larger chunks to reduce overhead
-        const chunkSize = 441000; // Process 10 seconds at a time at 44.1kHz
+        // Use much larger chunks and process with requestIdleCallback
+        const chunkSize = Math.min(length, 1024 * 1024); // 1M samples or full length
         const totalChunks = Math.ceil(length / chunkSize);
         
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-            const start = chunkIndex * chunkSize;
-            const end = Math.min(start + chunkSize, length);
+        return new Promise((resolve, reject) => {
+            let chunkIndex = 0;
             
-            // Process this chunk
-            for (let i = start; i < end; i++) {
-                let sum = 0;
-                for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-                    sum += audioBuffer.getChannelData(channel)[i];
+            const processChunk = (deadline) => {
+                try {
+                    // Process multiple chunks within the time slice
+                    while (chunkIndex < totalChunks && (!deadline || deadline.timeRemaining() > 0)) {
+                        const start = chunkIndex * chunkSize;
+                        const end = Math.min(start + chunkSize, length);
+                        
+                        // Optimized processing - get channel data once
+                        const channelData = [];
+                        for (let ch = 0; ch < numberOfChannels; ch++) {
+                            channelData.push(audioBuffer.getChannelData(ch));
+                        }
+                        
+                        // Process samples
+                        for (let i = start; i < end; i++) {
+                            let sum = 0;
+                            for (let ch = 0; ch < numberOfChannels; ch++) {
+                                sum += channelData[ch][i];
+                            }
+                            monoData[i] = sum / numberOfChannels;
+                        }
+                        
+                        chunkIndex++;
+                        
+                        // Update progress less frequently
+                        if (chunkIndex % Math.max(1, Math.floor(totalChunks / 10)) === 0) {
+                            const progress = 72 + (chunkIndex / totalChunks) * 1;
+                            this.updateStatus(`Converting to mono... ${Math.round((chunkIndex / totalChunks) * 100)}%`, progress);
+                        }
+                    }
+                    
+                    if (chunkIndex >= totalChunks) {
+                        resolve(monoData);
+                    } else {
+                        // Schedule next chunk
+                        if (window.requestIdleCallback) {
+                            window.requestIdleCallback(processChunk, { timeout: 50 });
+                        } else {
+                            setTimeout(() => processChunk({ timeRemaining: () => 10 }), 0);
+                        }
+                    }
+                } catch (error) {
+                    reject(error);
                 }
-                monoData[i] = sum / audioBuffer.numberOfChannels;
-            }
+            };
             
-            // Only update progress occasionally to prevent UI blocking
-            if (chunkIndex % 2 === 0 || chunkIndex === totalChunks - 1) {
-                const progress = 72 + (chunkIndex / totalChunks) * 1;
-                this.updateStatus(`Converting to mono... ${Math.round((chunkIndex / totalChunks) * 100)}%`, progress);
-                
-                // Yield control less frequently
-                if (chunkIndex < totalChunks - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                }
+            // Start processing
+            if (window.requestIdleCallback) {
+                window.requestIdleCallback(processChunk, { timeout: 50 });
+            } else {
+                setTimeout(() => processChunk({ timeRemaining: () => 10 }), 0);
             }
-        }
-        
-        return monoData;
+        });
     }
 
     convertToMonoChunked(audioBuffer) {
@@ -799,34 +830,65 @@ class TranscriptionManager {
     }
 
     async resampleAudioAsync(sourceData, sourceSampleRate, targetSampleRate) {
-        // Optimized resampling using WebAssembly if available
-        let wasmResampleAvailable = false;
-
-        if (!wasmResampleAvailable) {
-            // Fallback to traditional resampling, optimized
-            const ratio = sourceSampleRate / targetSampleRate;
-            const sourceLength = sourceData.length;
-            const targetLength = Math.round(sourceLength / ratio);
-            const resampledData = new Float32Array(targetLength);
+        const ratio = sourceSampleRate / targetSampleRate;
+        const sourceLength = sourceData.length;
+        const targetLength = Math.round(sourceLength / ratio);
+        const resampledData = new Float32Array(targetLength);
+        
+        // Use requestIdleCallback for non-blocking resampling
+        return new Promise((resolve, reject) => {
+            const chunkSize = Math.min(targetLength, 256 * 1024); // 256K samples per chunk
+            const totalChunks = Math.ceil(targetLength / chunkSize);
+            let chunkIndex = 0;
             
-            const chunkSize = Math.round(16000); // Process ~1 second at 16kHz at a time
-            for (let targetStart = 0; targetStart < targetLength; targetStart += chunkSize) {
-                const targetEnd = Math.min(targetStart + chunkSize, targetLength);
-                for (let i = targetStart; i < targetEnd; i++) {
-                    const sourceIndex = i * ratio;
-                    const sourceIndexFloor = Math.floor(sourceIndex);
-                    const sourceIndexCeil = Math.min(sourceIndexFloor + 1, sourceLength - 1);
-                    const fraction = sourceIndex - sourceIndexFloor;
-                    resampledData[i] = sourceData[sourceIndexFloor] * (1 - fraction) + 
-                                      sourceData[sourceIndexCeil] * fraction;
+            const processChunk = (deadline) => {
+                try {
+                    // Process multiple chunks within the time slice
+                    while (chunkIndex < totalChunks && (!deadline || deadline.timeRemaining() > 1)) {
+                        const targetStart = chunkIndex * chunkSize;
+                        const targetEnd = Math.min(targetStart + chunkSize, targetLength);
+                        
+                        // Optimized resampling loop
+                        for (let i = targetStart; i < targetEnd; i++) {
+                            const sourceIndex = i * ratio;
+                            const sourceIndexFloor = Math.floor(sourceIndex);
+                            const sourceIndexCeil = Math.min(sourceIndexFloor + 1, sourceLength - 1);
+                            const fraction = sourceIndex - sourceIndexFloor;
+                            resampledData[i] = sourceData[sourceIndexFloor] * (1 - fraction) + 
+                                              sourceData[sourceIndexCeil] * fraction;
+                        }
+                        
+                        chunkIndex++;
+                        
+                        // Update progress occasionally
+                        if (chunkIndex % Math.max(1, Math.floor(totalChunks / 5)) === 0) {
+                            const progress = 74 + (chunkIndex / totalChunks) * 1;
+                            this.updateStatus(`Resampling... ${Math.round((chunkIndex / totalChunks) * 100)}%`, progress);
+                        }
+                    }
+                    
+                    if (chunkIndex >= totalChunks) {
+                        resolve(resampledData);
+                    } else {
+                        // Schedule next chunk
+                        if (window.requestIdleCallback) {
+                            window.requestIdleCallback(processChunk, { timeout: 50 });
+                        } else {
+                            setTimeout(() => processChunk({ timeRemaining: () => 5 }), 0);
+                        }
+                    }
+                } catch (error) {
+                    reject(error);
                 }
+            };
+            
+            // Start processing
+            if (window.requestIdleCallback) {
+                window.requestIdleCallback(processChunk, { timeout: 50 });
+            } else {
+                setTimeout(() => processChunk({ timeRemaining: () => 5 }), 0);
             }
-            return resampledData;
-        } else {
-            // Resample using WebAssembly (placeholder for actual implementation)
-            console.log('Using WebAssembly for resampling');
-            return new Float32Array(sourceData.length); // Placeholder return
-        }
+        });
     }
 
     resampleAudioChunked(sourceData, sourceSampleRate, targetSampleRate) {
