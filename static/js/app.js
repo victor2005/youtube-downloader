@@ -203,6 +203,12 @@ async function loadDownloads() {
                 downloadsList.appendChild(li);
             });
         }
+        
+        // Also refresh transcription audio files if transcription manager is available
+        if (window.transcriptionManager) {
+            console.log(`[${timestamp}] Refreshing transcription audio files...`);
+            window.transcriptionManager.loadAvailableAudioFiles();
+        }
     } catch (error) {
         console.error('Failed to load downloads:', error);
     }
@@ -244,4 +250,10 @@ window.downloadTranscription = function() {
     if (window.transcriptionManager) {
         window.transcriptionManager.downloadTranscriptionAsText();
     }
+};
+
+// Function to refresh both downloads list and transcription audio files
+window.refreshLists = function() {
+    console.log('Refreshing both downloads list and transcription audio files...');
+    loadDownloads(); // This will automatically refresh transcription files too
 };
