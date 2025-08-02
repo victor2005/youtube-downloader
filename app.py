@@ -266,7 +266,12 @@ def download():
     try:
         data = request.json
         url = data.get('url')
-        format_type = data.get('format', 'video')  # 'video' or 'mp3'
+        format_type = data.get('format', 'video')  # 'video', 'mp3', or 'transcribe'
+        
+        # Convert 'transcribe' format to 'mp3' since we need audio for transcription
+        if format_type == 'transcribe':
+            format_type = 'mp3'
+            logging.info(f"Transcribe format requested, converting to MP3 download")
         
         if not url:
             return jsonify({'error': 'URL is required'}), 400
@@ -274,7 +279,8 @@ def download():
         # Generate unique download ID
         download_id = str(int(time.time() * 1000))
         
-        logging.info(f"Starting download for URL: {url}, format: {format_type}")
+        original_format = data.get('format', 'video')
+        logging.info(f"Starting download for URL: {url}, original format: {original_format}, actual format: {format_type}")
         
         # Ensure user has session
         if 'user_id' not in session:
