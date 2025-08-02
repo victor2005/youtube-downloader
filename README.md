@@ -13,6 +13,9 @@ A simple web application that allows you to download YouTube videos or extract M
 - 📊 Real-time download progress tracking
 - 📁 File management with download history
 - 🌐 Web-based interface accessible from any device on your network
+- 🌍 **Multilingual support** - English, Spanish, and Chinese
+- 🔄 **Automatic language detection** from browser settings
+- 🎛️ **Language switcher** for manual language selection
 
 ## Setup
 
@@ -55,6 +58,24 @@ The server runs on all network interfaces, so you can access it from other devic
 ## File Storage
 
 Downloaded files are stored in the `downloads/` directory within the project folder.
+
+## Multilingual Support
+
+The application supports three languages:
+- 🇺🇸 **English** (en) - Default
+- 🇪🇸 **Spanish** (es) - Español 
+- 🇨🇳 **Chinese** (zh) - 中文
+
+### Language Features:
+- **Automatic Detection**: The app detects your browser's language preference
+- **Manual Selection**: Use the language dropdown to switch languages
+- **Session Persistence**: Your language choice is remembered during your session
+- **Complete Translation**: All UI elements, buttons, and messages are translated
+
+### Testing Multilingual Deployment:
+```bash
+python test_deployment.py https://your-app-url.railway.app
+```
 
 ## Dependencies
 
