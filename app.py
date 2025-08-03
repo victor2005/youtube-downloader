@@ -8,6 +8,7 @@ import uuid
 import logging
 import threading
 from pathlib import Path
+from resource_manager import ResourceManager
 
 try:
     from pydub import AudioSegment
@@ -21,6 +22,13 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Initialize resource manager
+try:
+    resource_manager = ResourceManager(app)
+except ImportError as e:
+    logging.warning(f"Resource manager not available (missing psutil): {e}")
+    resource_manager = None
 
 # Configure Babel
 babel = Babel()
@@ -222,15 +230,23 @@ def debug_status():
     if user_downloads_dir and user_downloads_dir.exists():
         files_on_disk = [f.name for f in user_downloads_dir.iterdir() if f.is_file()]
     
-    return jsonify({
+    response_data = {
         'active_downloads': len(download_progress),
         'download_progress': download_progress,
         'user_downloads_count': len(user_downloads),
         'current_user_id': current_user_id,
         'user_downloads_in_memory': user_downloads.get(current_user_id, []),
         'files_on_disk': files_on_disk,
-        'all_user_downloads': user_downloads  # Show all user download data
-    })
+        'all_user_downloads': user_downloads
+    }
+    
+    # Add resource manager stats if available
+    if resource_manager:
+        stats = resource_manager.get_system_stats()
+        if stats:
+            response_data['system_stats'] = stats
+    
+    return jsonify(response_data)
 
 @app.route('/session-info')
 def session_info():
@@ -276,12 +292,6 @@ def download():
         if not url:
             return jsonify({'error': 'URL is required'}), 400
         
-        # Generate unique download ID
-        download_id = str(int(time.time() * 1000))
-        
-        original_format = data.get('format', 'video')
-        logging.info(f"Starting download for URL: {url}, original format: {original_format}, actual format: {format_type}")
-        
         # Ensure user has session
         if 'user_id' not in session:
             session['user_id'] = str(uuid.uuid4())
@@ -290,6 +300,24 @@ def download():
         
         user_id = session['user_id']
         logging.info(f"Download endpoint: Using user_id: {user_id}")
+        
+        # Check resource limits if resource manager is available
+        if resource_manager:
+            if not resource_manager.can_start_download(user_id):
+                return jsonify({'error': 'Too many concurrent downloads. Please wait for current downloads to finish.'}), 429
+            
+            if not resource_manager.check_disk_space():
+                return jsonify({'error': 'Server storage is full. Please try again later.'}), 503
+        
+        # Generate unique download ID
+        download_id = str(int(time.time() * 1000))
+        
+        original_format = data.get('format', 'video')
+        logging.info(f"Starting download for URL: {url}, original format: {original_format}, actual format: {format_type}")
+        
+        # Track download start with resource manager
+        if resource_manager:
+            resource_manager.start_download(user_id)
         
         # Start download in background thread
         thread = threading.Thread(target=download_video, args=(url, format_type, download_id, user_id))
@@ -637,6 +665,10 @@ def download_video(url, format_type, download_id, user_id):
             'status': 'error',
             'error': str(e)
         }
+    finally:
+        # Always mark download as finished in resource manager
+        if resource_manager:
+            resource_manager.finish_download(user_id)
 
 @app.route('/progress/<download_id>')
 def get_progress(download_id):

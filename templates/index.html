@@ -500,38 +500,6 @@
         }
     </script>
     
-    <!-- Debug Monetag ads -->
-    <script>
-        setTimeout(() => {
-            console.log('=== Monetag Ad Debug Info ===');
-            
-            const bannerAd = document.getElementById('topBannerAd');
-            const rectangleAd = document.getElementById('sideRectangleAd');
-            
-            console.log('Banner ad container:', bannerAd);
-            console.log('Banner ad children:', bannerAd.children.length);
-            console.log('Banner ad innerHTML length:', bannerAd.innerHTML.length);
-            
-            console.log('Rectangle ad container:', rectangleAd);
-            console.log('Rectangle ad children:', rectangleAd.children.length);
-            console.log('Rectangle ad innerHTML length:', rectangleAd.innerHTML.length);
-            
-            // Check for iframes or other ad elements
-            const iframes = document.querySelectorAll('iframe');
-            console.log('Total iframes on page:', iframes.length);
-            iframes.forEach((iframe, index) => {
-                console.log(`Iframe ${index}:`, {
-                    src: iframe.src,
-                    width: iframe.width,
-                    height: iframe.height,
-                    style: iframe.style.cssText,
-                    visible: iframe.offsetWidth > 0 && iframe.offsetHeight > 0
-                });
-            });
-            
-            console.log('========================');
-        }, 3000);
-    </script>
     <!--<script>
         // Format selection
         document.querySelectorAll('.format-option').forEach(option => {
