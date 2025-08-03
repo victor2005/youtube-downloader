@@ -1188,6 +1188,16 @@ class TranscriptionManager {
         return resampledData;
     }
 
+    // Helper method to remove timestamps from transcript text
+    removeTimestampsFromText(text) {
+        if (!text) return '';
+        
+        // Remove timestamp patterns like [0:00-0:30] (3s) or [NaN:NaN-NaN:NaN]
+        return text.replace(/\[\d+:\d{2}-\d+:\d{2}\]\s*\(\d+s\)|\[NaN:NaN-NaN:NaN\]\s*/g, '')
+                  .replace(/\n\s*\n/g, '\n') // Remove extra blank lines
+                  .trim();
+    }
+
     copyTranscriptionToClipboard() {
         const transcript = this.elements.transcriptText.textContent;
         if (!transcript) {
@@ -1195,8 +1205,11 @@ class TranscriptionManager {
             return;
         }
 
-        navigator.clipboard.writeText(transcript).then(() => {
-            alert('Transcript copied to clipboard!');
+        // Remove timestamps for cleaner text
+        const cleanTranscript = this.removeTimestampsFromText(transcript);
+        
+        navigator.clipboard.writeText(cleanTranscript).then(() => {
+            alert('Transcript copied to clipboard (timestamps removed)!');
         }).catch(err => {
             console.error('Failed to copy transcript:', err);
             alert('Failed to copy transcript to clipboard');
@@ -1210,12 +1223,15 @@ class TranscriptionManager {
             return;
         }
 
+        // Remove timestamps for cleaner text
+        const cleanTranscript = this.removeTimestampsFromText(transcript);
+        
         const filename = this.elements.audioFileSelect.value;
         const transcriptFilename = filename ? 
             filename.replace(/\.[^/.]+$/, '_transcript.txt') : 
             'transcript.txt';
 
-        const blob = new Blob([transcript], { type: 'text/plain' });
+        const blob = new Blob([cleanTranscript], { type: 'text/plain' });
         const url = window.URL.createObjectURL(blob);
         
         const a = document.createElement('a');
