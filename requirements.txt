@@ -4,3 +4,4 @@ gunicorn==21.2.0
 pydub
 mutagen
 Flask-Babel==4.0.0
+psutil
