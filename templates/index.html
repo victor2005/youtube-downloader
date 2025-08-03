@@ -7,8 +7,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="preload" href="{{ url_for('static', filename='js/app.js') }}" as="script">
     
-    <!-- Skillful Tag without Anti-Adblock -->
-<script>(s=>{s.dataset.zone='9653281',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
     <!--<style>
         * {
             margin: 0;
@@ -280,18 +278,12 @@
             <p>{{ _('Download videos or extract MP3 audio from YouTube') }}</p>
         </div>
         
+        <!-- Header Banner Ad (In-Page Push) -->
+        <div class="monetag-header-banner" style="text-align: center; margin: 15px 0; padding: 10px;">
+            <script>(function(d,z,s){s.src='https://'+d+'/400/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('vemtoutcheeg.com',9661295,document.createElement('script'))</script>
+        </div>
+        
         <div class="content">
-            <!-- Monetag Banner Ad (invisible overlay) -->
-            <script type="text/javascript">
-                atOptions = {
-                    'key' : '9653282',
-                    'format' : 'iframe',
-                    'height' : 90,
-                    'width' : 728,
-                    'params' : {}
-                };
-                document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9653282/invoke.js"></scr' + 'ipt>');
-            </script>
             
             <form id="downloadForm">
                 <div class="form-group">
@@ -335,18 +327,11 @@
                 </div>
                 <div id="progressText">{{ _('Preparing download...') }}</div>
             </div>
-            
-            <!-- Monetag Rectangle Ad (invisible overlay) -->
-            <script type="text/javascript">
-                atOptions = {
-                    'key' : '9655935',
-                    'format' : 'iframe',
-                    'height' : 250,
-                    'width' : 300,
-                    'params' : {}
-                };
-                document.write('<scr' + 'ipt type="text/javascript" src="http' + (location.protocol === 'https:' ? 's' : '') + '://madurird.com/9655935/invoke.js"></scr' + 'ipt>');
-            </script>
+
+            <!-- Content Vignette Banner Ad -->
+            <div class="monetag-vignette-banner" style="text-align: center; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <script>(function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('gizokraijaw.net',9661297,document.createElement('script'))</script>
+            </div>
             
             <!-- Transcription Section -->
             <div class="transcription-section" id="transcriptionSection" style="display: none;">
@@ -421,6 +406,20 @@
                     <!-- Downloaded files will appear here -->
                 </ul>
                 <button type="button" onclick="refreshLists()" style="margin-top: 10px; padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 {{ _('Refresh List') }}</button>
+            </div>
+            
+            <!-- Footer Direct Link Ads -->
+            <div class="monetag-direct-links" style="text-align: center; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                <script type="text/javascript">
+                    atOptions = {
+                        'key' : 'YOUR_DIRECT_LINK_KEY_HERE',
+                        'format' : 'link',
+                        'height' : 90,
+                        'width' : 728,
+                        'params' : {}
+                    };
+                    document.write('<scr' + 'ipt type="text/javascript" src="//www.profitablecpmrate.com/YOUR_DIRECT_LINK_KEY_HERE/invoke.js"></scr' + 'ipt>');
+                </script>
             </div>
             
         </div>
