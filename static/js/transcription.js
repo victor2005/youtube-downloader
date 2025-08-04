@@ -345,9 +345,15 @@ class TranscriptionManager {
             const contentLength = response.headers.get('content-length');
             console.log('Audio file size:', contentLength ? (parseInt(contentLength) / 1024 / 1024).toFixed(2) + ' MB' : 'unknown');
             
-            // Check file size before processing
-            if (contentLength && parseInt(contentLength) > 50 * 1024 * 1024) { // 50MB limit
-                throw new Error('Audio file too large (over 50MB). Please use a smaller file or shorter audio clip.');
+            // Check file size before processing - increased limit to 150MB
+            if (contentLength && parseInt(contentLength) > 150 * 1024 * 1024) { // 150MB limit
+                throw new Error('Audio file too large (over 150MB). Please try downloading a shorter audio clip or use a lower quality format.');
+            }
+            
+            // Show warning for large files
+            if (contentLength && parseInt(contentLength) > 75 * 1024 * 1024) { // 75MB warning
+                console.warn('Large audio file detected - transcription may take longer');
+                this.updateStatus('Large file detected - this may take a while...', 62);
             }
 
             const arrayBuffer = await response.arrayBuffer();

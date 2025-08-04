@@ -99,7 +99,7 @@ def strip_ansi_codes(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     return ansi_escape.sub('', text).strip()
 
-def sanitize_filename(filename, max_length=200):
+def sanitize_filename(filename, max_length=100):
     """Sanitize and truncate filename to avoid filesystem issues"""
     if not filename:
         return "video"
@@ -429,7 +429,7 @@ def download_video(url, format_type, download_id, user_id):
             return str(downloads_dir / f'{sanitized_title}.{ext}')
         
         base_opts = {
-            'outtmpl': {'default': str(downloads_dir / '%(title).200s.%(ext)s')},
+            'outtmpl': {'default': str(downloads_dir / '%(title).100s.%(ext)s')},
             'restrictfilenames': True,  # Remove problematic characters
             'windowsfilenames': True,   # Ensure compatibility with Windows file naming
             'progress_hooks': [ProgressHook(download_id)],
