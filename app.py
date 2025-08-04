@@ -100,24 +100,56 @@ def strip_ansi_codes(text):
     return ansi_escape.sub('', text).strip()
 
 def sanitize_filename(filename, max_length=100):
-    """Sanitize and truncate filename to avoid filesystem issues"""
+    """Sanitize and truncate filename to avoid filesystem issues while preserving readability"""
     if not filename:
         return "video"
     
-    # Remove or replace invalid characters
-    invalid_chars = '<>:"/\\|?*'
-    for char in invalid_chars:
-        filename = filename.replace(char, '_')
+    # Step 1: Preserve the original filename by keeping alphanumeric, spaces, and common punctuation
+    # Only replace truly problematic filesystem characters
+    filename = str(filename)  # Ensure it's a string
     
-    # Remove multiple consecutive spaces/underscores and trim
-    filename = re.sub(r'[\s_]+', '_', filename).strip('_. ')
+    # Replace filesystem-dangerous characters with safer alternatives
+    replacements = {
+        '<': '(',
+        '>': ')',
+        ':': '-',
+        '"': "'",
+        '/': '-',
+        '\\': '-',
+        '|': '-',
+        '?': '',
+        '*': '',
+        '\x00': '',  # null character
+    }
     
-    # Truncate if too long, keeping some space for extension
+    for bad_char, replacement in replacements.items():
+        filename = filename.replace(bad_char, replacement)
+    
+    # Step 2: Clean up multiple spaces, dashes, and dots but preserve structure
+    filename = re.sub(r'\s+', ' ', filename)  # Multiple spaces to single space
+    filename = re.sub(r'-+', '-', filename)   # Multiple dashes to single dash
+    filename = re.sub(r'\.-', '.', filename)  # Remove dash after dot
+    filename = re.sub(r'-\.', '.', filename)  # Remove dash before dot
+    
+    # Step 3: Remove leading/trailing problematic characters but keep content
+    filename = filename.strip(' .-_')
+    
+    # Step 4: Truncate to max length but try to break at word boundaries
     if len(filename) > max_length:
-        filename = filename[:max_length].rstrip('_. ')
+        # Try to truncate at a space to avoid breaking words
+        truncated = filename[:max_length]
+        last_space = truncated.rfind(' ')
+        
+        if last_space > max_length * 0.8:  # If space is reasonably close to end
+            filename = truncated[:last_space]
+        else:
+            filename = truncated
+        
+        # Clean up the end after truncation
+        filename = filename.rstrip(' .-_')
     
-    # Ensure it's not empty after sanitization
-    if not filename:
+    # Step 5: Final safety check - ensure we have something meaningful
+    if not filename or len(filename) < 3:
         filename = "video"
     
     return filename
