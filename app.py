@@ -453,17 +453,11 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 6: Set preparing status for {download_id}")
         
         # Configure yt-dlp options with cleaner output
-        # Create a custom outtmpl function to sanitize filenames
-        def outtmpl_func(info_dict):
-            title = info_dict.get('title', 'video')
-            ext = info_dict.get('ext', 'mp4')
-            sanitized_title = sanitize_filename(title)
-            return str(downloads_dir / f'{sanitized_title}.{ext}')
         
         base_opts = {
             'outtmpl': {'default': str(downloads_dir / '%(title).100s.%(ext)s')},
-            'restrictfilenames': True,  # Remove problematic characters
-            'windowsfilenames': True,   # Ensure compatibility with Windows file naming
+            'restrictfilenames': False,  # Let yt-dlp handle filenames naturally
+            'windowsfilenames': False,   # Don't over-restrict filenames
             'progress_hooks': [ProgressHook(download_id)],
             'no_warnings': False,
             'extract_flat': False,
