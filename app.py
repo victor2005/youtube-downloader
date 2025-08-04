@@ -558,26 +558,11 @@ def download_video(url, format_type, download_id, user_id):
                 
                 # Now proceed with actual download
                 logging.info(f"Starting actual download for {download_id}")
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        logging.info(f"Calling yt-dlp download for {download_id}")
-                        ydl.download([url])
-                        logging.info(f"yt-dlp download completed for {download_id}")
-                except Exception as download_error:
-                    # Check if it's a filename too long error
-                    if "File name too long" in str(download_error) or "[Errno 36]" in str(download_error):
-                        logging.warning(f"Filename too long error, retrying with fallback template for {download_id}")
-                        # Retry with very short filename template
-                        fallback_opts = ydl_opts.copy()
-                        fallback_opts['outtmpl'] = {'default': str(downloads_dir / '%(id)s.%(ext)s')}
-                        
-                        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                            logging.info(f"Calling yt-dlp download with fallback template for {download_id}")
-                            ydl.download([url])
-                            logging.info(f"yt-dlp download completed with fallback template for {download_id}")
-                    else:
-                        # Re-raise if it's not a filename error
-                        raise download_error
+                logging.info(f"Using filename template: {ydl_opts['outtmpl']['default']}")
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    logging.info(f"Calling yt-dlp download for {download_id}")
+                    ydl.download([url])
+                    logging.info(f"yt-dlp download completed for {download_id}")
                 
                 download_success = True
             except Exception as e:
