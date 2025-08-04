@@ -99,6 +99,29 @@ def strip_ansi_codes(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     return ansi_escape.sub('', text).strip()
 
+def sanitize_filename(filename, max_length=200):
+    """Sanitize and truncate filename to avoid filesystem issues"""
+    if not filename:
+        return "video"
+    
+    # Remove or replace invalid characters
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        filename = filename.replace(char, '_')
+    
+    # Remove multiple consecutive spaces/underscores and trim
+    filename = re.sub(r'[\s_]+', '_', filename).strip('_. ')
+    
+    # Truncate if too long, keeping some space for extension
+    if len(filename) > max_length:
+        filename = filename[:max_length].rstrip('_. ')
+    
+    # Ensure it's not empty after sanitization
+    if not filename:
+        filename = "video"
+    
+    return filename
+
 def update_progress(download_id, status_dict):
     """Update progress with timestamp"""
     import time
@@ -398,8 +421,17 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 6: Set preparing status for {download_id}")
         
         # Configure yt-dlp options with cleaner output
+        # Create a custom outtmpl function to sanitize filenames
+        def outtmpl_func(info_dict):
+            title = info_dict.get('title', 'video')
+            ext = info_dict.get('ext', 'mp4')
+            sanitized_title = sanitize_filename(title)
+            return str(downloads_dir / f'{sanitized_title}.{ext}')
+        
         base_opts = {
-            'outtmpl': str(downloads_dir / '%(title)s.%(ext)s'),
+            'outtmpl': {'default': str(downloads_dir / '%(title).200s.%(ext)s')},
+            'restrictfilenames': True,  # Remove problematic characters
+            'windowsfilenames': True,   # Ensure compatibility with Windows file naming
             'progress_hooks': [ProgressHook(download_id)],
             'no_warnings': False,
             'extract_flat': False,
