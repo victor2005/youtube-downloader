@@ -464,16 +464,51 @@ def download_video(url, format_type, download_id, user_id):
             logging.warning(f"Could not extract title: {e}")
             video_title = 'video'
         
-        # Smart filename template based on title length
-        if len(video_title) > 200:  # Very long title
-            filename_template = '%(title).100s.%(ext)s'
-            logging.info(f"Using truncated filename template for long title: {len(video_title)} chars")
-        elif len(video_title) > 150:  # Moderately long title
-            filename_template = '%(title).150s.%(ext)s'
-            logging.info(f"Using moderately truncated filename template: {len(video_title)} chars")
+        # Smart filename template based on byte length (for cross-platform compatibility)
+        def get_byte_length(text):
+            """Get the UTF-8 byte length of a string"""
+            return len(text.encode('utf-8'))
+        
+        def truncate_to_bytes(text, max_bytes=180):
+            """Truncate text to fit within max_bytes UTF-8 bytes, preserving word boundaries"""
+            if get_byte_length(text) <= max_bytes:
+                return text
+            
+            # Binary search to find the longest substring that fits
+            left, right = 0, len(text)
+            best_length = 0
+            
+            while left <= right:
+                mid = (left + right) // 2
+                if get_byte_length(text[:mid]) <= max_bytes:
+                    best_length = mid
+                    left = mid + 1
+                else:
+                    right = mid - 1
+            
+            truncated = text[:best_length]
+            
+            # Try to break at word boundary
+            if best_length < len(text) and best_length > max_bytes * 0.8:
+                last_space = truncated.rfind(' ')
+                if last_space > max_bytes * 0.7:  # Only if reasonably close
+                    truncated = truncated[:last_space]
+            
+            return truncated.rstrip(' .-_')
+        
+        title_bytes = get_byte_length(video_title)
+        logging.info(f"Video title '{video_title[:50]}...' is {len(video_title)} chars, {title_bytes} bytes")
+        
+        # Use byte-aware truncation (leaving room for .mp3/.mp4 extension)
+        if title_bytes > 180:  # Conservative limit, accounting for extension
+            truncated_title = truncate_to_bytes(video_title, 180)
+            # Create a custom template with the pre-truncated title
+            safe_title = truncated_title.replace('%', '%%')  # Escape any % in title
+            filename_template = f'{safe_title}.%(ext)s'
+            logging.info(f"Using byte-truncated title: '{truncated_title}' ({get_byte_length(truncated_title)} bytes)")
         else:
             filename_template = '%(title)s.%(ext)s'
-            logging.info(f"Using full filename template: {len(video_title)} chars")
+            logging.info(f"Using full title ({title_bytes} bytes - safe for all filesystems)")
         
         base_opts = {
             'outtmpl': {'default': str(downloads_dir / filename_template)},
