@@ -559,10 +559,40 @@ def download_video(url, format_type, download_id, user_id):
                 # Now proceed with actual download
                 logging.info(f"Starting actual download for {download_id}")
                 logging.info(f"Using filename template: {ydl_opts['outtmpl']['default']}")
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    logging.info(f"Calling yt-dlp download for {download_id}")
-                    ydl.download([url])
-                    logging.info(f"yt-dlp download completed for {download_id}")
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        logging.info(f"Calling yt-dlp download for {download_id}")
+                        ydl.download([url])
+                        logging.info(f"yt-dlp download completed for {download_id}")
+                except Exception as download_error:
+                    error_str = str(download_error)
+                    logging.error(f"Download error for {download_id}: {download_error}")
+                    
+                    # Check VERY specifically for filename too long errors
+                    is_filename_too_long = (
+                        "[Errno 36]" in error_str and "File name too long" in error_str
+                    ) or (
+                        "[Errno 63]" in error_str  # Another filename too long error code
+                    ) or (
+                        "filename too long" in error_str.lower() and "errno" in error_str.lower()
+                    )
+                    
+                    if is_filename_too_long:
+                        logging.warning(f"CONFIRMED filename too long error detected. Retrying with video ID for {download_id}")
+                        logging.warning(f"Original filename error: {download_error}")
+                        
+                        # Retry with video ID as filename (guaranteed to be short)
+                        fallback_opts = ydl_opts.copy()
+                        fallback_opts['outtmpl'] = {'default': str(downloads_dir / '%(id)s.%(ext)s')}
+                        
+                        logging.info(f"Retrying download with video ID template: {fallback_opts['outtmpl']['default']}")
+                        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                            ydl.download([url])
+                            logging.info(f"SUCCESS: Download completed with video ID fallback for {download_id}")
+                    else:
+                        # Not a filename error - re-raise the original error
+                        logging.error(f"Not a filename length error - re-raising: {download_error}")
+                        raise download_error
                 
                 download_success = True
             except Exception as e:
