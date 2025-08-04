@@ -456,8 +456,8 @@ def download_video(url, format_type, download_id, user_id):
         
         base_opts = {
             'outtmpl': {'default': str(downloads_dir / '%(title).100s.%(ext)s')},
-            'restrictfilenames': False,  # Let yt-dlp handle filenames naturally
-            'windowsfilenames': False,   # Don't over-restrict filenames
+            'restrictfilenames': True,   # Enable filename restrictions for compatibility
+            'windowsfilenames': True,    # Enable cross-platform filename compatibility
             'progress_hooks': [ProgressHook(download_id)],
             'no_warnings': False,
             'extract_flat': False,
