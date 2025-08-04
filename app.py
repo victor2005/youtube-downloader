@@ -453,11 +453,32 @@ def download_video(url, format_type, download_id, user_id):
         logging.info(f"STEP 6: Set preparing status for {download_id}")
         
         # Configure yt-dlp options with cleaner output
+        # First get video info to check title length
+        video_title = None
+        try:
+            with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as test_ydl:
+                info = test_ydl.extract_info(url, download=False)
+                video_title = info.get('title', 'video')
+                logging.info(f"Video title: {video_title}")
+        except Exception as e:
+            logging.warning(f"Could not extract title: {e}")
+            video_title = 'video'
+        
+        # Smart filename template based on title length
+        if len(video_title) > 200:  # Very long title
+            filename_template = '%(title).100s.%(ext)s'
+            logging.info(f"Using truncated filename template for long title: {len(video_title)} chars")
+        elif len(video_title) > 150:  # Moderately long title
+            filename_template = '%(title).150s.%(ext)s'
+            logging.info(f"Using moderately truncated filename template: {len(video_title)} chars")
+        else:
+            filename_template = '%(title)s.%(ext)s'
+            logging.info(f"Using full filename template: {len(video_title)} chars")
         
         base_opts = {
-            'outtmpl': {'default': str(downloads_dir / '%(title).100s.%(ext)s')},
-            'restrictfilenames': True,   # Enable filename restrictions for compatibility
-            'windowsfilenames': True,    # Enable cross-platform filename compatibility
+            'outtmpl': {'default': str(downloads_dir / filename_template)},
+            'restrictfilenames': False,  # Keep original titles readable
+            'windowsfilenames': False,   # Don't over-restrict filenames
             'progress_hooks': [ProgressHook(download_id)],
             'no_warnings': False,
             'extract_flat': False,
@@ -537,10 +558,26 @@ def download_video(url, format_type, download_id, user_id):
                 
                 # Now proceed with actual download
                 logging.info(f"Starting actual download for {download_id}")
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    logging.info(f"Calling yt-dlp download for {download_id}")
-                    ydl.download([url])
-                    logging.info(f"yt-dlp download completed for {download_id}")
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        logging.info(f"Calling yt-dlp download for {download_id}")
+                        ydl.download([url])
+                        logging.info(f"yt-dlp download completed for {download_id}")
+                except Exception as download_error:
+                    # Check if it's a filename too long error
+                    if "File name too long" in str(download_error) or "[Errno 36]" in str(download_error):
+                        logging.warning(f"Filename too long error, retrying with fallback template for {download_id}")
+                        # Retry with very short filename template
+                        fallback_opts = ydl_opts.copy()
+                        fallback_opts['outtmpl'] = {'default': str(downloads_dir / '%(id)s.%(ext)s')}
+                        
+                        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                            logging.info(f"Calling yt-dlp download with fallback template for {download_id}")
+                            ydl.download([url])
+                            logging.info(f"yt-dlp download completed with fallback template for {download_id}")
+                    else:
+                        # Re-raise if it's not a filename error
+                        raise download_error
                 
                 download_success = True
             except Exception as e:
