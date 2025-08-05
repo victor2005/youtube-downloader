@@ -361,45 +361,7 @@
             
             <!-- Transcription Section -->
             <div class="transcription-section" id="transcriptionSection" style="display: none;">
-                <h3>🎤 {{ _('Audio Transcription with Whisper AI') }}</h3>
-                <div class="info-message" style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 12px; margin: 15px 0; color: #1565c0;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 18px;">💡</span>
-                        <span><strong>{{ _('Note') }}:</strong> {{ _('You can either transcribe from a YouTube URL directly or select a previously downloaded audio file.') }}</span>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="transcriptionSource">{{ _('Transcription Source') }}:</label>
-                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                        <label style="cursor: pointer; flex: 1;">
-                            <input type="radio" name="transcriptionSource" value="url" checked onchange="toggleTranscriptionSource()">
-                            <span style="margin-left: 5px;">🔗 {{ _('YouTube URL') }}</span>
-                        </label>
-                        <label style="cursor: pointer; flex: 1;">
-                            <input type="radio" name="transcriptionSource" value="file" onchange="toggleTranscriptionSource()">
-                            <span style="margin-left: 5px;">📁 {{ _('Downloaded File') }}</span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="form-group" id="urlInputGroup">
-                    <label for="transcriptionUrl">{{ _('YouTube URL') }}:</label>
-                    <input type="url" id="transcriptionUrl" placeholder="https://www.youtube.com/watch?v=..." style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                </div>
-                <div class="form-group">
-                    <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
-                    <select id="audioFileSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                        <option value="">{{ _('Loading available files...') }}</option>
-                    </select>
-                </div>
-                
-                <div class="info-message" style="background: #f0f7ff; border: 1px solid #d0e2ff; border-radius: 8px; padding: 12px; margin: 15px 0; color: #1976d2;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 18px;">🤖</span>
-                        <span><strong>{{ _('Smart AI Model Selection') }}:</strong> {{ _('The app automatically selects the best AI model based on your language choice. SenseVoice for Chinese/Japanese/Korean, Whisper for other languages.') }}</span>
-                    </div>
-                </div>
+                <h3>🎤 {{ _('Audio Transcription') }}</h3>
                 
                 <div class="form-group">
                     <label for="languageSelect">{{ _('Language') }}:</label>
@@ -418,7 +380,20 @@
                     </select>
                 </div>
                 
-                <button type="button" id="transcribeBtn" class="download-btn" onclick="startTranscription()">
+                <div style="margin-bottom: 20px;">
+                    <details>
+                        <summary style="cursor: pointer; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">📁 {{ _('Or use a previously downloaded file') }}</summary>
+                        <div class="form-group" id="fileInputGroup" style="margin-top: 10px;">
+                            <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
+                            <select id="audioFileSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                                <option value="">{{ _('Loading available files...') }}</option>
+                            </select>
+                            <small style="color: #666; display: block; margin-top: 5px;">{{ _('Select from your previously downloaded audio files') }}</small>
+                        </div>
+                    </details>
+                </div>
+                
+                <button type="button" id="transcribeBtn" class="download-btn">
                     🎤 {{ _('Start Transcription') }}
                 </button>
                 

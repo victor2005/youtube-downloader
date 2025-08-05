@@ -234,6 +234,14 @@ msgstr "自动检测"
 msgid "Transcription Progress"
 msgstr "转录进度"
 
+#: templates/index.html:363
+msgid "Audio Transcription"
+msgstr "音频转录"
+
+#: templates/index.html:385
+msgid "Or use a previously downloaded file"
+msgstr "或使用先前下载的文件"
+
 #: templates/index.html:397
 msgid "Loading model..."
 msgstr "正在加载模型..."

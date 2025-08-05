@@ -6,16 +6,20 @@ document.querySelectorAll('.format-option').forEach(option => {
         
         // Show/hide transcription section based on selected format
         const transcriptionSection = document.getElementById('transcriptionSection');
+        const downloadBtn = document.getElementById('downloadBtn');
         const format = option.getAttribute('data-format');
         
         if (format === 'transcribe') {
             transcriptionSection.style.display = 'block';
+            downloadBtn.style.display = 'none'; // Hide download button for transcription
             // Load available audio files when transcription is selected
             if (window.transcriptionManager) {
                 window.transcriptionManager.loadAvailableAudioFiles();
             }
         } else {
             transcriptionSection.style.display = 'none';
+            downloadBtn.style.display = 'block'; // Show download button for video/mp3
+            downloadBtn.textContent = window.i18n.startDownload || 'Start Download';
         }
     });
 });
