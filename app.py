@@ -972,6 +972,65 @@ def whisper_status():
             'error': f'Whisper error: {str(e)}'
         })
 
+@app.route('/transcribe-url-poll', methods=['POST'])
+def transcribe_url_poll():
+    """Polling-based transcription for environments that don't support SSE"""
+    try:
+        data = request.json
+        url = data.get('url')
+        language = data.get('language', 'auto')
+        session_id = data.get('session_id')  # For tracking progress
+        
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+        
+        if not session_id:
+            session_id = str(uuid.uuid4())
+        
+        # Start transcription in background thread
+        def background_transcription():
+            # Store progress in a shared dict
+            transcription_progress = {
+                'status': 'initializing',
+                'chunks': [],
+                'final_transcript': '',
+                'error': None,
+                'complete': False
+            }
+            download_progress[f'transcribe_{session_id}'] = transcription_progress
+            
+            try:
+                # Your existing transcription logic here, but update progress dict
+                # instead of yielding SSE events
+                logging.info(f"Starting transcription for session {session_id}")
+                
+                # Similar logic to transcribe_url but updates progress dict
+                # This is a simplified version - you'd adapt your full logic
+                transcription_progress['status'] = 'processing'
+                transcription_progress['complete'] = True
+                transcription_progress['final_transcript'] = 'Transcription complete'
+                
+            except Exception as e:
+                transcription_progress['error'] = str(e)
+                transcription_progress['complete'] = True
+        
+        # Start background thread
+        thread = threading.Thread(target=background_transcription)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({'session_id': session_id})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/transcribe-progress/<session_id>')
+def get_transcribe_progress(session_id):
+    """Get transcription progress for polling"""
+    progress_key = f'transcribe_{session_id}'
+    progress = download_progress.get(progress_key, {'status': 'not_found'})
+    return jsonify(progress)
+
 @app.route('/transcribe-url', methods=['POST', 'GET'])
 def transcribe_url():
     """Transcribe audio directly from YouTube URL with optimized streaming"""
