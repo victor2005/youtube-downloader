@@ -1184,7 +1184,7 @@ def transcribe_url_poll():
                                 if text and len(text) > 1:  # Skip single character results
                                     total_transcript.append(text)
                                     transcription_progress['chunks'].append(text)
-                                    logging.info(f"Chunk {chunk_count} processed: {len(text)} chars")
+logging.info(f"Polling transcription: Processed chunk {chunk_count}, Length: {len(text)} chars, Model used: {model_used}, Text: {text[:30]}...")
                     
                     process.wait()
                     
@@ -1194,7 +1194,7 @@ def transcribe_url_poll():
                     transcription_progress['complete'] = True
                     transcription_progress['status'] = 'completed'
                     
-                    logging.info(f"Polling transcription completed for session {session_id}")
+logging.info(f"Polling transcription successfully completed for session {session_id}. Total chunks: {chunk_count}")
                     
                 except Exception as e:
                     process.terminate()
@@ -1412,7 +1412,7 @@ def transcribe_url():
                         # Transcribe chunk if it's long enough (at least 1 second)
                         if len(audio_chunk) > 16000:
                             chunk_count += 1
-                            logging.info(f"Transcribing chunk {chunk_count} ({len(audio_chunk)/16000:.1f}s)")
+logging.info(f"Processing chunk {chunk_count}: {len(audio_chunk)/16000:.1f}s) with language: {use_language}")
                             
                             # Detect language from first chunk if auto mode
                             if chunk_count == 1 and language == 'auto' and whisper_transcriber:
