@@ -972,6 +972,49 @@ def whisper_status():
             'error': f'Whisper error: {str(e)}'
         })
 
+@app.route('/test-dependencies')
+def test_dependencies():
+    """Test endpoint to check dependencies"""
+    import sys
+    
+    results = {
+        'python_version': sys.version,
+        'dependencies': {}
+    }
+    
+    # Test imports
+    dependencies = [
+        "funasr",
+        "torch",
+        "torchaudio",
+        "librosa",
+        "soundfile",
+        "numpy",
+        "scipy"
+    ]
+    
+    for dep in dependencies:
+        try:
+            __import__(dep)
+            results['dependencies'][dep] = 'OK'
+        except ImportError as e:
+            results['dependencies'][dep] = f'FAILED: {str(e)}'
+    
+    # Test SenseVoice initialization
+    try:
+        from funasr import AutoModel
+        results['funasr_automodel'] = 'OK'
+    except Exception as e:
+        results['funasr_automodel'] = f'FAILED: {str(e)}'
+    
+    try:
+        from funasr.utils.postprocess_utils import rich_transcription_postprocess
+        results['funasr_postprocess'] = 'OK'
+    except Exception as e:
+        results['funasr_postprocess'] = f'FAILED: {str(e)}'
+    
+    return jsonify(results)
+
 @app.route('/transcribe-url-poll', methods=['POST'])
 def transcribe_url_poll():
     """Polling-based transcription for environments that don't support SSE"""
