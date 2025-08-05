@@ -6,6 +6,7 @@ mutagen
 Flask-Babel==4.0.0
 psutil
 torch
+torchaudio
 funasr
 openai-whisper
 gevent==24.2.1
