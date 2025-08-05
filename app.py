@@ -1184,7 +1184,7 @@ def transcribe_url_poll():
                                 if text and len(text) > 1:  # Skip single character results
                                     total_transcript.append(text)
                                     transcription_progress['chunks'].append(text)
-logging.info(f"Polling transcription: Processed chunk {chunk_count}, Length: {len(text)} chars, Model used: {model_used}, Text: {text[:30]}...")
+                                    logging.info(f"Polling transcription: Processed chunk {chunk_count}, Length: {len(text)} chars, Model used: {model_used}, Text: {text[:30]}...")
                     
                     process.wait()
                     
@@ -1194,7 +1194,7 @@ logging.info(f"Polling transcription: Processed chunk {chunk_count}, Length: {le
                     transcription_progress['complete'] = True
                     transcription_progress['status'] = 'completed'
                     
-logging.info(f"Polling transcription successfully completed for session {session_id}. Total chunks: {chunk_count}")
+                    logging.info(f"Polling transcription successfully completed for session {session_id}. Total chunks: {chunk_count}")
                     
                 except Exception as e:
                     process.terminate()
