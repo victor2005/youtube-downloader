@@ -1238,6 +1238,22 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
     async transcribeFromUrlStreaming(url, language) {
         console.log('Starting streaming transcription from URL:', { url, language });
         
+        // Check if we're on Railway (which doesn't support SSE well)
+        const isRailway = window.location.hostname.includes('ytdownl.xyz') || 
+                          window.location.hostname.includes('railway.app');
+        
+        if (isRailway) {
+            console.log('Railway detected, using polling instead of SSE');
+            return this.transcribeFromUrlPolling(url, language);
+        }
+        
+        // Use SSE for local development
+        return this.transcribeFromUrlSSE(url, language);
+    }
+    
+    async transcribeFromUrlSSE(url, language) {
+        console.log('Using SSE transcription for URL:', { url, language });
+        
         // Build URL with query parameters for GET request
         const params = new URLSearchParams({
             url: url,
@@ -1308,6 +1324,93 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
             
             // Initial status
             this.updateStatus('🔄 Connecting to transcription service...', 10);
+        });
+    }
+    
+    async transcribeFromUrlPolling(url, language) {
+        console.log('Using polling transcription for URL:', { url, language });
+        
+        // Start transcription with polling API
+        const response = await fetch('/transcribe-url-poll', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                language: language
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to start transcription: ${response.statusText}`);
+        }
+        
+        const { session_id } = await response.json();
+        console.log('Started polling transcription with session:', session_id);
+        
+        // Poll for progress
+        return new Promise((resolve, reject) => {
+            let lastChunkCount = 0;
+            let transcriptChunks = [];
+            
+            const pollProgress = async () => {
+                try {
+                    const progressResponse = await fetch(`/transcribe-progress/${session_id}`);
+                    const progress = await progressResponse.json();
+                    
+                    console.log('Polling progress:', progress);
+                    
+                    if (progress.status === 'not_found') {
+                        reject(new Error('Transcription session not found'));
+                        return;
+                    }
+                    
+                    if (progress.error) {
+                        reject(new Error(progress.error));
+                        return;
+                    }
+                    
+                    // Update UI with chunks
+                    if (progress.chunks && progress.chunks.length > lastChunkCount) {
+                        const newChunks = progress.chunks.slice(lastChunkCount);
+                        transcriptChunks.push(...newChunks);
+                        
+                        // Update display
+                        const partialTranscript = transcriptChunks.join(' ');
+                        this.displayPartialTranscript(partialTranscript);
+                        
+                        // Update progress
+                        const progressPercent = Math.min(50 + (progress.chunks.length * 5), 95);
+                        this.updateStatus(`🎤 Processing chunk ${progress.chunks.length}...`, progressPercent);
+                        
+                        lastChunkCount = progress.chunks.length;
+                    }
+                    
+                    if (progress.complete) {
+                        if (progress.final_transcript) {
+                            this.updateStatus('✅ Transcription complete!', 100);
+                            resolve(progress.final_transcript);
+                        } else {
+                            const finalTranscript = transcriptChunks.join(' ');
+                            this.updateStatus('✅ Transcription complete!', 100);
+                            resolve(finalTranscript);
+                        }
+                    } else {
+                        // Continue polling
+                        setTimeout(pollProgress, 2000); // Poll every 2 seconds
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    reject(error);
+                }
+            };
+            
+            // Initial status
+            this.updateStatus('🔄 Starting transcription...', 10);
+            
+            // Start polling
+            setTimeout(pollProgress, 1000); // Start after 1 second
         });
     }
 

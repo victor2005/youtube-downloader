@@ -1043,21 +1043,164 @@ def transcribe_url_poll():
             download_progress[f'transcribe_{session_id}'] = transcription_progress
             
             try:
-                # Your existing transcription logic here, but update progress dict
-                # instead of yielding SSE events
-                logging.info(f"Starting transcription for session {session_id}")
-                
-                # Similar logic to transcribe_url but updates progress dict
-                # This is a simplified version - you'd adapt your full logic
+                logging.info(f"Starting polling transcription for session {session_id}")
                 transcription_progress['status'] = 'processing'
-                transcription_progress['complete'] = True
-                transcription_progress['final_transcript'] = 'Transcription complete'
                 
+                # Use the same transcription logic as the streaming version
+                # but collect results instead of yielding them
+                
+                # Extract video info
+                ydl_opts = {'quiet': True, 'no_warnings': True}
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    video_title = info.get('title', 'Unknown')
+                    duration = info.get('duration', 0)
+                
+                # Get best audio stream
+                formats = info.get('formats', [])
+                audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
+                
+                if not audio_formats:
+                    audio_formats = [f for f in formats if f.get('acodec') != 'none']
+                
+                if not audio_formats:
+                    raise Exception('No audio stream found')
+                
+                # Sort by audio quality
+                audio_formats.sort(key=lambda x: (
+                    x.get('abr', 0),
+                    x.get('asr', 0),
+                    -x.get('filesize', float('inf'))
+                ), reverse=True)
+                
+                best_audio = audio_formats[0]
+                audio_url = best_audio['url']
+                
+                # Define languages that SenseVoice handles well
+                sensevoice_optimal_languages = ['zh', 'zh-CN', 'zh-TW', 'yue', 'ja', 'ko']
+                
+                # Use ffmpeg to stream directly
+                import subprocess
+                import numpy as np
+                
+                ffmpeg_cmd = [
+                    'ffmpeg',
+                    '-i', audio_url,
+                    '-f', 'wav',
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '16000',
+                    '-ac', '1',
+                    '-'
+                ]
+                
+                process = subprocess.Popen(
+                    ffmpeg_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL
+                )
+                
+                # Process with chunked streaming
+                chunk_size = 16000 * 30  # 30-second chunks
+                chunk_count = 0
+                total_transcript = []
+                detected_language = None
+                
+                # Initialize variables for language detection
+                use_language = language if language != 'auto' else None
+                whisper_transcriber = None
+                
+                # Initialize Whisper if available for auto detection
+                if language == 'auto' and WHISPER_AVAILABLE:
+                    try:
+                        whisper_transcriber = WhisperTranscriber(model_size="base")
+                        logging.info("Auto language detection requested, will use Whisper to detect from first chunk")
+                    except Exception as e:
+                        logging.warning(f"Failed to initialize Whisper: {e}")
+                        use_language = 'zh'  # Fallback to Chinese for SenseVoice
+                
+                try:
+                    while True:
+                        chunk = process.stdout.read(chunk_size * 2)  # 2 bytes per sample
+                        if not chunk:
+                            break
+                        
+                        # Convert to numpy array
+                        audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                        
+                        # Transcribe chunk if it's long enough (at least 1 second)
+                        if len(audio_chunk) > 16000:
+                            chunk_count += 1
+                            logging.info(f"Processing chunk {chunk_count} ({len(audio_chunk)/16000:.1f}s)")
+                            
+                            # Detect language from first chunk if auto mode
+                            if chunk_count == 1 and language == 'auto' and whisper_transcriber:
+                                try:
+                                    detected_language = whisper_transcriber.detect_language(audio_chunk)
+                                    logging.info(f"Detected language: {detected_language}")
+                                    
+                                    # Decide which model to use based on detected language
+                                    if detected_language in sensevoice_optimal_languages:
+                                        use_language = detected_language
+                                        logging.info(f"Using SenseVoice for {detected_language}")
+                                    else:
+                                        # Use Whisper for non-Asian languages
+                                        result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                        if result.get('success'):
+                                            text = result['text'].strip()
+                                            if text and len(text) > 1:
+                                                total_transcript.append(text)
+                                                transcription_progress['chunks'].append(text)
+                                        continue  # Skip SenseVoice processing
+                                except Exception as e:
+                                    logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
+                                    use_language = 'zh'
+                                    detected_language = 'zh'
+                            
+                            # Use appropriate transcription based on language
+                            if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
+                                # Use Whisper for non-Asian languages
+                                result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                model_used = 'whisper'
+                            else:
+                                # Use SenseVoice for Asian languages or fallback
+                                result = transcribe_with_sensevoice_from_array(
+                                    audio_array=audio_chunk,
+                                    sample_rate=16000,
+                                    language=use_language or 'zh',
+                                    model_name='SenseVoiceSmall'
+                                )
+                                model_used = 'sensevoice'
+                            
+                            if result.get('success') and result.get('text'):
+                                # Filter out empty or very short transcripts
+                                text = result['text'].strip()
+                                if text and len(text) > 1:  # Skip single character results
+                                    total_transcript.append(text)
+                                    transcription_progress['chunks'].append(text)
+                                    logging.info(f"Chunk {chunk_count} processed: {len(text)} chars")
+                    
+                    process.wait()
+                    
+                    # Set final result
+                    final_transcript = ' '.join(total_transcript)
+                    transcription_progress['final_transcript'] = final_transcript
+                    transcription_progress['complete'] = True
+                    transcription_progress['status'] = 'completed'
+                    
+                    logging.info(f"Polling transcription completed for session {session_id}")
+                    
+                except Exception as e:
+                    process.terminate()
+                    raise e
+                    
             except Exception as e:
+                logging.error(f"Polling transcription error for session {session_id}: {e}")
                 transcription_progress['error'] = str(e)
                 transcription_progress['complete'] = True
+                transcription_progress['status'] = 'error'
         
         # Start background thread
+        import threading
         thread = threading.Thread(target=background_transcription)
         thread.daemon = True
         thread.start()
@@ -1065,6 +1208,7 @@ def transcribe_url_poll():
         return jsonify({'session_id': session_id})
         
     except Exception as e:
+        logging.error(f"Error starting polling transcription: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/transcribe-progress/<session_id>')
