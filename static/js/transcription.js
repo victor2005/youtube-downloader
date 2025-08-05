@@ -31,30 +31,48 @@ class TranscriptionManager {
             status: document.getElementById('transcriptionProgressText'),
             result: document.getElementById('transcriptionResult'),
             transcriptText: document.getElementById('transcriptionText'),
-            transcriptionUrl: document.getElementById('transcriptionUrl')
+            mainUrlInput: document.getElementById('url') // Use the main URL input
         };
+        
+        console.log('Elements initialized:', {
+            transcribeBtn: this.elements.transcribeBtn,
+            section: this.elements.section,
+            mainUrlInput: this.elements.mainUrlInput
+        });
     }
 
     bindEvents() {
         // Transcribe button click
-        this.elements.transcribeBtn.addEventListener('click', () => {
-            this.startTranscription();
-        });
+        if (this.elements.transcribeBtn) {
+            console.log('Binding click event to transcribe button');
+            this.elements.transcribeBtn.addEventListener('click', (e) => {
+                e.preventDefault(); // Prevent any form submission
+                e.stopPropagation(); // Stop event bubbling
+                console.log('Transcribe button clicked');
+                this.startTranscription();
+            });
+        } else {
+            console.error('Transcribe button not found!');
+        }
 
         // Language selection change - reset pipeline when language changes
-        this.elements.languageSelect.addEventListener('change', () => {
-            this.pipeline = null; // Reset pipeline when language changes
-            this.currentModel = null;
-        });
+        if (this.elements.languageSelect) {
+            this.elements.languageSelect.addEventListener('change', () => {
+                this.pipeline = null; // Reset pipeline when language changes
+                this.currentModel = null;
+            });
+        }
 
         // Audio file selection change
-        this.elements.audioFileSelect.addEventListener('change', () => {
-            this.updateTranscribeButtonState();
-        });
-        
-        // URL input change
-        if (this.elements.transcriptionUrl) {
-            this.elements.transcriptionUrl.addEventListener('input', () => {
+        if (this.elements.audioFileSelect) {
+            this.elements.audioFileSelect.addEventListener('change', () => {
+                this.updateTranscribeButtonState();
+            });
+        }
+
+        // Main YouTube URL input change
+        if (this.elements.mainUrlInput) {
+            this.elements.mainUrlInput.addEventListener('input', () => {
                 this.updateTranscribeButtonState();
             });
         }
@@ -105,11 +123,10 @@ class TranscriptionManager {
     }
 
     updateTranscribeButtonState() {
-        const isUrl = document.querySelector('input[name="transcriptionSource"]:checked')?.value === 'url';
-        const hasUrl = this.elements.transcriptionUrl?.value?.trim() !== '';
+        const hasUrl = this.elements.mainUrlInput?.value?.trim() !== '';
         const hasAudioFile = this.elements.audioFileSelect.value !== '';
         
-        this.elements.transcribeBtn.disabled = this.isLoading || (isUrl ? !hasUrl : !hasAudioFile);
+        this.elements.transcribeBtn.disabled = this.isLoading || (!hasUrl && !hasAudioFile);
     }
 
     formatFileSize(bytes) {
@@ -997,9 +1014,8 @@ class TranscriptionManager {
                                 eventSource.close();
                                 this.updateStatus('✅ SenseVoice transcription complete!', 100);
                                 
-                                // Add model info header
-                                const modelInfo = `🤖 Model: ${modelName}\n📊 Language: ${language}\n⚡ Server-side processing\n\n`;
-                                resolve(modelInfo + finalTranscript);
+                                // Return just the transcript without model info
+                                resolve(finalTranscript);
                             }
                         } else if (data.error) {
                             // Handle error
@@ -1017,8 +1033,7 @@ class TranscriptionManager {
                     // If we have some transcript, it might just be the connection closing normally
                     if (finalTranscript) {
                         this.updateStatus('✅ SenseVoice transcription complete!', 100);
-                        const modelInfo = `🤖 Model: ${modelName}\n📊 Language: ${language}\n⚡ Server-side processing\n\n`;
-                        resolve(modelInfo + finalTranscript);
+                        resolve(finalTranscript);
                     } else {
                         reject(new Error('Streaming connection failed'));
                     }
@@ -1035,7 +1050,6 @@ class TranscriptionManager {
     async startTranscription() {
         if (this.isLoading) return;
 
-        const useUrl = document.querySelector('input[name="transcriptionSource"]:checked').value === 'url';
         const selectedLanguage = this.elements.languageSelect.value;
         let selectedFile = this.elements.audioFileSelect.value;
 
@@ -1048,14 +1062,14 @@ class TranscriptionManager {
         try {
             let transcript;
 
-            if (useUrl) {
-                const url = this.elements.transcriptionUrl.value;
+            const url = this.elements.mainUrlInput.value.trim();
+            if (url) {
                 console.log('Transcribing directly from URL:', url);
                 transcript = await this.transcribeFromUrl(url, selectedLanguage);
-            } else {
+            } else if (selectedFile) {
                 // Auto-select model based on language
                 const sensevoiceLanguages = ['zh', 'zh-CN', 'zh-TW', 'yue', 'ja', 'ko'];
-                const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sensevoiceAvailable;
+const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sensevoiceAvailable;
                 
                 if (useSenseVoice) {
                     console.log('Using SenseVoice for transcription (language:', selectedLanguage, ')');
@@ -1077,6 +1091,8 @@ class TranscriptionManager {
                     // Transcribe the audio
                     transcript = await this.transcribeAudio(audioBuffer, selectedLanguage);
                 }
+            } else {
+                throw new Error('Please provide a YouTube URL or select an audio file.');
             }
 
             // Display results
@@ -1156,10 +1172,8 @@ class TranscriptionManager {
             this.updateStatus('🎤 Starting transcription...', 70);
             const transcript = await this.transcribeAudio(audioBuffer, language);
             
-            // Add model info
-            const modelInfo = `🤖 Model: Whisper (Base)\n📊 Language: ${language}\n⚡ Processing: Client-side (from URL)\n\n`;
-            
-            return modelInfo + transcript;
+            // Return just the transcript
+            return transcript;
             
         } catch (error) {
             console.error('Whisper URL transcription error:', error);
@@ -1247,10 +1261,9 @@ class TranscriptionManager {
                         if (data.final) {
                             // Final result received
                             eventSource.close();
-                            modelInfo = `🤖 Model: ${data.model || 'SenseVoice'}\n📊 Language: ${data.language || language}\n⚡ Processing: Server-side streaming\n\n`;
                             finalTranscript = data.transcript || transcriptChunks.join(' ');
                             this.updateStatus('✅ Transcription complete!', 100);
-                            resolve(modelInfo + finalTranscript);
+                            resolve(finalTranscript);
                         } else {
                             // Chunk received
                             if (data.text) {
@@ -1286,9 +1299,8 @@ class TranscriptionManager {
                 // If we have some transcript, it might just be the connection closing normally
                 if (transcriptChunks.length > 0) {
                     this.updateStatus('✅ Transcription complete!', 100);
-                    modelInfo = `🤖 Model: SenseVoice\n📊 Language: ${language}\n⚡ Processing: Server-side streaming\n\n`;
                     finalTranscript = transcriptChunks.join(' ');
-                    resolve(modelInfo + finalTranscript);
+                    resolve(finalTranscript);
                 } else {
                     reject(new Error('Streaming connection failed'));
                 }
@@ -1662,20 +1674,4 @@ window.refreshLists = () => {
     }
 };
 
-// Toggle between URL and file transcription sources
-window.toggleTranscriptionSource = () => {
-    const isUrl = document.querySelector('input[name="transcriptionSource"]:checked')?.value === 'url';
-    const urlInputGroup = document.getElementById('urlInputGroup');
-    const fileSelectGroup = document.getElementById('audioFileSelect').parentElement;
-    
-    if (isUrl) {
-        urlInputGroup.style.display = 'block';
-        fileSelectGroup.style.display = 'none';
-    } else {
-        urlInputGroup.style.display = 'none';
-        fileSelectGroup.style.display = 'block';
-    }
-    
-    // Update button state
-    transcriptionManager?.updateTranscribeButtonState();
-};
+// No longer needed - URL is always visible and file input is in a collapsible details element

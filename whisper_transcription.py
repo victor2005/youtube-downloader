@@ -1,6 +1,6 @@
 """
 Whisper transcription module for multi-language audio transcription
-Supports both local Whisper models and OpenAI's Whisper API
+Uses local Whisper models (open-source)
 """
 
 import logging
@@ -14,13 +14,6 @@ import os
 import whisper
 WHISPER_AVAILABLE = True
 
-# Try to import OpenAI for API access
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    logging.warning("OpenAI not installed. Run: pip install openai")
 
 
 class WhisperTranscriber:
