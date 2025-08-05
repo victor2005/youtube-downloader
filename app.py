@@ -1412,7 +1412,7 @@ def transcribe_url():
                         # Transcribe chunk if it's long enough (at least 1 second)
                         if len(audio_chunk) > 16000:
                             chunk_count += 1
-logging.info(f"Processing chunk {chunk_count}: {len(audio_chunk)/16000:.1f}s) with language: {use_language}")
+                            logging.info(f"Processing chunk {chunk_count}: {len(audio_chunk)/16000:.1f}s) with language: {use_language}")
                             
                             # Detect language from first chunk if auto mode
                             if chunk_count == 1 and language == 'auto' and whisper_transcriber:
