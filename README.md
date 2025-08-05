@@ -108,3 +108,4 @@ python test_deployment.py https://your-app-url.railway.app
 - If downloads fail, try updating yt-dlp: `pip install --upgrade yt-dlp`
 - For MP3 extraction issues, ensure FFmpeg is installed: `brew install ffmpeg`
 - For deployment issues, check the Railway logs in your dashboard
+# Force Railway rebuild Tue  5 Aug 2025 04:09:38 EDT
