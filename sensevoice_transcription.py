@@ -45,7 +45,9 @@ class SenseVoiceTranscriber:
             self.is_available = True
             logger.info("✅ SenseVoice post-processing initialized")
         except Exception as e:
+            import traceback
             logger.error(f"❌ Failed to initialize SenseVoice post-processing: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self.is_available = False
     
     def _get_model_config(self, model_name="SenseVoiceSmall"):
