@@ -1360,6 +1360,10 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
                     const progress = await progressResponse.json();
                     
                     console.log('Polling progress:', progress);
+                    console.log('Current chunks count:', progress.chunks ? progress.chunks.length : 0);
+                    console.log('Last chunk count:', lastChunkCount);
+                    console.log('Progress status:', progress.status);
+                    console.log('Progress complete:', progress.complete);
                     
                     if (progress.status === 'not_found') {
                         reject(new Error('Transcription session not found'));
