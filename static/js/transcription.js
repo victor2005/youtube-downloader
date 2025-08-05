@@ -1,12 +1,13 @@
-// Client-side Audio Transcription using Transformers.js with Web Workers
-// This provides Whisper-powered transcription without blocking the UI
+// Hybrid Audio Transcription supporting both Whisper (client-side) and SenseVoice (server-side)
+// This allows comparing both models for accuracy and performance
 
 class TranscriptionManager {
     constructor() {
         this.worker = null;
         this.isLoading = false;
         this.currentModel = null;
-        this.supportedFormats = ['.mp3', '.wav', '.m4a', '.ogg', '.webm'];
+        this.supportedFormats = ['.mp3', '.wav', '.m4a', '.ogg', '.webm', '.flac'];
+        this.sensevoiceAvailable = false;
         this.fullTranscript = '';
         this.processedChunks = 0;
         this.totalChunks = 0;
@@ -16,20 +17,21 @@ class TranscriptionManager {
         this.bindEvents();
         this.loadAvailableAudioFiles();
         this.initializeWorker();
+        this.checkSenseVoiceAvailability();
     }
 
     initializeElements() {
         this.elements = {
             section: document.getElementById('transcriptionSection'),
             audioFileSelect: document.getElementById('audioFileSelect'),
-            modelSelect: document.getElementById('modelSelect'),
             languageSelect: document.getElementById('languageSelect'),
             transcribeBtn: document.getElementById('transcribeBtn'),
             progress: document.getElementById('transcriptionProgress'),
             progressFill: document.getElementById('transcriptionProgressFill'),
             status: document.getElementById('transcriptionProgressText'),
             result: document.getElementById('transcriptionResult'),
-            transcriptText: document.getElementById('transcriptionText')
+            transcriptText: document.getElementById('transcriptionText'),
+            transcriptionUrl: document.getElementById('transcriptionUrl')
         };
     }
 
@@ -39,9 +41,9 @@ class TranscriptionManager {
             this.startTranscription();
         });
 
-        // Model selection change
-        this.elements.modelSelect.addEventListener('change', () => {
-            this.pipeline = null; // Reset pipeline when model changes
+        // Language selection change - reset pipeline when language changes
+        this.elements.languageSelect.addEventListener('change', () => {
+            this.pipeline = null; // Reset pipeline when language changes
             this.currentModel = null;
         });
 
@@ -49,6 +51,13 @@ class TranscriptionManager {
         this.elements.audioFileSelect.addEventListener('change', () => {
             this.updateTranscribeButtonState();
         });
+        
+        // URL input change
+        if (this.elements.transcriptionUrl) {
+            this.elements.transcriptionUrl.addEventListener('input', () => {
+                this.updateTranscribeButtonState();
+            });
+        }
     }
 
     async loadAvailableAudioFiles() {
@@ -96,8 +105,11 @@ class TranscriptionManager {
     }
 
     updateTranscribeButtonState() {
+        const isUrl = document.querySelector('input[name="transcriptionSource"]:checked')?.value === 'url';
+        const hasUrl = this.elements.transcriptionUrl?.value?.trim() !== '';
         const hasAudioFile = this.elements.audioFileSelect.value !== '';
-        this.elements.transcribeBtn.disabled = !hasAudioFile || this.isLoading;
+        
+        this.elements.transcribeBtn.disabled = this.isLoading || (isUrl ? !hasUrl : !hasAudioFile);
     }
 
     formatFileSize(bytes) {
@@ -899,17 +911,133 @@ class TranscriptionManager {
         return cleanedLines.join('\n');
     }
 
+    async checkSenseVoiceAvailability() {
+        try {
+            console.log('Checking SenseVoice availability...');
+            const response = await fetch('/sensevoice-status');
+            const status = await response.json();
+            
+            this.sensevoiceAvailable = status.available;
+            console.log('SenseVoice available:', this.sensevoiceAvailable);
+            
+            // Update model dropdown with SenseVoice option
+            this.updateModelDropdown(status);
+            
+        } catch (error) {
+            console.error('Failed to check SenseVoice availability:', error);
+            this.sensevoiceAvailable = false;
+        }
+    }
+    
+    updateModelDropdown(sensevoiceStatus) {
+        // No longer needed since we auto-select models
+        console.log('Model auto-selection enabled, SenseVoice status:', sensevoiceStatus);
+    }
+    
+    async transcribeWithSenseVoice(filename, language) {
+        try {
+            // Get selected SenseVoice model
+            const sensevoiceModelSelect = document.getElementById('sensevoiceModelSelect');
+            const modelName = sensevoiceModelSelect ? sensevoiceModelSelect.value : 'SenseVoiceSmall';
+            
+            this.updateStatus('🚀 Starting SenseVoice transcription...', 10);
+            this.elements.transcriptText.textContent = '🎙️ Initializing SenseVoice transcription...\n\n';
+            this.elements.result.style.display = 'block';
+            
+            // Initialize for streaming
+            this.fullTranscript = '';
+            this.processedChunks = 0;
+            this.totalChunks = 0;
+            
+            const requestData = {
+                filename: filename,
+                language: language,
+                model: modelName,
+                streaming: true  // Enable streaming
+            };
+            
+            console.log('Sending streaming transcription request to SenseVoice:', requestData);
+            
+            // Use EventSource for Server-Sent Events
+            const eventSource = new EventSource(
+                `/transcribe?${new URLSearchParams(requestData).toString()}`
+            );
+            
+            return new Promise((resolve, reject) => {
+                let finalTranscript = '';
+                
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.success && data.segment_text) {
+                            // Handle streaming chunk
+                            const { segment_text, segment_num, total_segments, processing_time } = data;
+                            
+                            // Update progress
+                            const progress = 10 + (segment_num / total_segments) * 80;
+                            this.updateStatus(
+                                `🔄 Processing segment ${segment_num}/${total_segments}...`,
+                                progress
+                            );
+                            
+                            // Add to transcript
+                            this.fullTranscript += segment_text + '\n\n';
+                            finalTranscript = this.fullTranscript;
+                            
+                            // Update display in real-time
+                            this.elements.transcriptText.textContent = this.fullTranscript + 
+                                (segment_num < total_segments ? '\n⏳ Processing next segment...' : '');
+                            
+                            // Auto-scroll to bottom
+                            this.elements.transcriptText.scrollTop = this.elements.transcriptText.scrollHeight;
+                            
+                            // If this is the last segment
+                            if (segment_num === total_segments) {
+                                eventSource.close();
+                                this.updateStatus('✅ SenseVoice transcription complete!', 100);
+                                
+                                // Add model info header
+                                const modelInfo = `🤖 Model: ${modelName}\n📊 Language: ${language}\n⚡ Server-side processing\n\n`;
+                                resolve(modelInfo + finalTranscript);
+                            }
+                        } else if (data.error) {
+                            // Handle error
+                            eventSource.close();
+                            reject(new Error(data.error));
+                        }
+                    } catch (e) {
+                        console.error('Error parsing SSE data:', e);
+                    }
+                };
+                
+                eventSource.onerror = (error) => {
+                    eventSource.close();
+                    
+                    // If we have some transcript, it might just be the connection closing normally
+                    if (finalTranscript) {
+                        this.updateStatus('✅ SenseVoice transcription complete!', 100);
+                        const modelInfo = `🤖 Model: ${modelName}\n📊 Language: ${language}\n⚡ Server-side processing\n\n`;
+                        resolve(modelInfo + finalTranscript);
+                    } else {
+                        reject(new Error('Streaming connection failed'));
+                    }
+                };
+            });
+            
+        } catch (error) {
+            console.error('SenseVoice transcription error:', error);
+            this.updateStatus(`❌ SenseVoice error: ${error.message}`, 0);
+            throw error;
+        }
+    }
+
     async startTranscription() {
         if (this.isLoading) return;
 
-        const selectedFile = this.elements.audioFileSelect.value;
-        const selectedModel = this.elements.modelSelect.value;
+        const useUrl = document.querySelector('input[name="transcriptionSource"]:checked').value === 'url';
         const selectedLanguage = this.elements.languageSelect.value;
-
-        if (!selectedFile) {
-            alert('Please select an audio file first.');
-            return;
-        }
+        let selectedFile = this.elements.audioFileSelect.value;
 
         this.isLoading = true;
         this.elements.transcribeBtn.disabled = true;
@@ -918,20 +1046,38 @@ class TranscriptionManager {
         this.elements.result.style.display = 'none';
 
         try {
-            // Load the model (returns false if worker failed and we need fallback)
-            const modelLoaded = await this.loadModel(selectedModel);
-            
-            // If worker failed, modelLoaded will be false, and we'll use main thread fallback
-            if (modelLoaded === false) {
-                // Retry loading in main thread
-                await this.loadModel(selectedModel);
+            let transcript;
+
+            if (useUrl) {
+                const url = this.elements.transcriptionUrl.value;
+                console.log('Transcribing directly from URL:', url);
+                transcript = await this.transcribeFromUrl(url, selectedLanguage);
+            } else {
+                // Auto-select model based on language
+                const sensevoiceLanguages = ['zh', 'zh-CN', 'zh-TW', 'yue', 'ja', 'ko'];
+                const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sensevoiceAvailable;
+                
+                if (useSenseVoice) {
+                    console.log('Using SenseVoice for transcription (language:', selectedLanguage, ')');
+                    transcript = await this.transcribeWithSenseVoice(selectedFile, selectedLanguage);
+                } else {
+                    console.log('Using Whisper for transcription');
+                    // Load the model (returns false if worker failed and we need fallback)
+                    const modelLoaded = await this.loadModel('whisper-base');
+                    
+                    // If worker failed, modelLoaded will be false, and we'll use main thread fallback
+                    if (modelLoaded === false) {
+                        // Retry loading in main thread
+                        await this.loadModel('whisper-base');
+                    }
+
+                    // Load the audio file
+                    const audioBuffer = await this.loadAudioFile(selectedFile);
+
+                    // Transcribe the audio
+                    transcript = await this.transcribeAudio(audioBuffer, selectedLanguage);
+                }
             }
-
-            // Load the audio file
-            const audioBuffer = await this.loadAudioFile(selectedFile);
-
-            // Transcribe the audio
-            const transcript = await this.transcribeAudio(audioBuffer, selectedLanguage);
 
             // Display results
             this.displayTranscript(transcript);
@@ -944,6 +1090,222 @@ class TranscriptionManager {
             this.isLoading = false;
             this.elements.transcribeBtn.disabled = false;
             this.elements.transcribeBtn.textContent = '🎤 Start Transcription';
+        }
+    }
+
+    async transcribeFromUrl(url, language) {
+        console.log('Starting transcription from URL with parameters:', { url, language });
+
+        try {
+            // Always use streaming for URL transcription (server will decide which model to use)
+            console.log('Using streaming transcription for URL (language:', language, ')');
+            return await this.transcribeFromUrlStreaming(url, language);
+        } catch (error) {
+            console.error('Failed to transcribe from URL:', error);
+            throw error;
+        }
+    }
+
+    async transcribeFromUrlWithWhisper(url, language) {
+        console.log('Starting Whisper transcription from URL:', { url, language });
+        
+        try {
+            // Step 1: Download audio from URL
+            this.updateStatus('🔄 Downloading audio from URL...', 5);
+            
+            const downloadResponse = await fetch('/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    url: url, 
+                    format: 'mp3'  // Download as MP3 for transcription
+                })
+            });
+            
+            if (!downloadResponse.ok) {
+                throw new Error('Failed to start download');
+            }
+            
+            const downloadData = await downloadResponse.json();
+            const downloadId = downloadData.download_id;
+            
+            // Step 2: Monitor download progress
+            this.updateStatus('⏳ Downloading audio file...', 10);
+            const filename = await this.waitForDownload(downloadId);
+            
+            if (!filename) {
+                throw new Error('Download failed or timed out');
+            }
+            
+            console.log('Audio downloaded successfully:', filename);
+            
+            // Step 3: Load Whisper model
+            this.updateStatus('🤖 Loading Whisper model...', 30);
+            const modelLoaded = await this.loadModel('whisper-base');
+            
+            if (modelLoaded === false) {
+                // Retry loading in main thread
+                await this.loadModel('whisper-base');
+            }
+            
+            // Step 4: Load and transcribe the audio file
+            this.updateStatus('📂 Loading audio file...', 50);
+            const audioBuffer = await this.loadAudioFile(filename);
+            
+            // Step 5: Transcribe
+            this.updateStatus('🎤 Starting transcription...', 70);
+            const transcript = await this.transcribeAudio(audioBuffer, language);
+            
+            // Add model info
+            const modelInfo = `🤖 Model: Whisper (Base)\n📊 Language: ${language}\n⚡ Processing: Client-side (from URL)\n\n`;
+            
+            return modelInfo + transcript;
+            
+        } catch (error) {
+            console.error('Whisper URL transcription error:', error);
+            throw error;
+        }
+    }
+
+    async waitForDownload(downloadId, maxWaitTime = 180000) { // 3 minutes max
+        const startTime = Date.now();
+        let lastPercent = 0;
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            try {
+                const response = await fetch(`/progress/${downloadId}`);
+                const progress = await response.json();
+                
+                if (progress.status === 'finished') {
+                    // Get the downloaded file
+                    const filesResponse = await fetch('/downloads?t=' + Date.now());
+                    const files = await filesResponse.json();
+                    
+                    // Find the most recent audio file
+                    const audioFiles = files.filter(file => 
+                        this.supportedFormats.some(format => 
+                            file.name.toLowerCase().endsWith(format)
+                        )
+                    ).sort((a, b) => b.modified - a.modified);
+                    
+                    if (audioFiles.length > 0) {
+                        // Refresh the audio file dropdown
+                        await this.loadAvailableAudioFiles();
+                        return audioFiles[0].name;
+                    }
+                    
+                    throw new Error('Downloaded file not found');
+                    
+                } else if (progress.status === 'error') {
+                    throw new Error(progress.error || 'Download failed');
+                    
+                } else if (progress.status === 'downloading') {
+                    // Update progress
+                    const percent = parseInt(progress.percent) || 0;
+                    if (percent > lastPercent) {
+                        lastPercent = percent;
+                        const downloadProgress = 10 + (percent * 0.15); // 10-25% of total progress
+                        this.updateStatus(`⏬ Downloading: ${progress.percent} at ${progress.speed || 'N/A'}`, downloadProgress);
+                    }
+                }
+                
+                // Wait before checking again
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+            } catch (error) {
+                console.error('Error checking download progress:', error);
+                // Continue waiting
+            }
+        }
+        
+        throw new Error('Download timed out');
+    }
+
+    async transcribeFromUrlStreaming(url, language) {
+        console.log('Starting streaming transcription from URL:', { url, language });
+        
+        // Build URL with query parameters for GET request
+        const params = new URLSearchParams({
+            url: url,
+            language: language,
+            streaming: 'true'
+        });
+        
+        const eventSource = new EventSource(`/transcribe-url?${params}`);
+        
+        return new Promise((resolve, reject) => {
+            let transcriptChunks = [];
+            let finalTranscript = '';
+            let modelInfo = '';
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Received streaming data:', data);
+                    
+                    if (data.success) {
+                        if (data.final) {
+                            // Final result received
+                            eventSource.close();
+                            modelInfo = `🤖 Model: ${data.model || 'SenseVoice'}\n📊 Language: ${data.language || language}\n⚡ Processing: Server-side streaming\n\n`;
+                            finalTranscript = data.transcript || transcriptChunks.join(' ');
+                            this.updateStatus('✅ Transcription complete!', 100);
+                            resolve(modelInfo + finalTranscript);
+                        } else {
+                            // Chunk received
+                            if (data.text) {
+                                transcriptChunks.push(data.text);
+                                // Update display with partial transcript
+                                const partialTranscript = transcriptChunks.join(' ');
+                                this.displayPartialTranscript(partialTranscript);
+                                
+                                // Update progress
+                                const progress = Math.min(50 + (data.chunk * 5), 95);
+                                this.updateStatus(`🎤 Transcribing chunk ${data.chunk}...`, progress);
+                            }
+                        }
+                    } else if (data.error) {
+                        // Handle error
+                        eventSource.close();
+                        
+                        // Check if we need to download first for client-side transcription
+                        if (data.error.includes('download the audio file first')) {
+                            reject(new Error('For this language, please download the audio file first, then use the "Downloaded File" option to transcribe with Whisper.'));
+                        } else {
+                            reject(new Error(data.error));
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing SSE data:', e);
+                }
+            };
+            
+            eventSource.onerror = (error) => {
+                eventSource.close();
+                
+                // If we have some transcript, it might just be the connection closing normally
+                if (transcriptChunks.length > 0) {
+                    this.updateStatus('✅ Transcription complete!', 100);
+                    modelInfo = `🤖 Model: SenseVoice\n📊 Language: ${language}\n⚡ Processing: Server-side streaming\n\n`;
+                    finalTranscript = transcriptChunks.join(' ');
+                    resolve(modelInfo + finalTranscript);
+                } else {
+                    reject(new Error('Streaming connection failed'));
+                }
+            };
+            
+            // Initial status
+            this.updateStatus('🔄 Connecting to transcription service...', 10);
+        });
+    }
+
+    displayPartialTranscript(text) {
+        // Display partial transcript while streaming
+        if (this.elements.transcriptText) {
+            this.elements.transcriptText.textContent = text;
+            if (this.elements.result.style.display === 'none') {
+                this.elements.result.style.display = 'block';
+            }
         }
     }
 
@@ -1288,3 +1650,32 @@ function initializeTranscription() {
 
 // Export for use in other scripts
 window.TranscriptionManager = TranscriptionManager;
+
+// Make functions globally available
+window.startTranscription = () => transcriptionManager?.startTranscription();
+window.copyTranscription = () => transcriptionManager?.copyTranscriptionToClipboard();
+window.downloadTranscription = () => transcriptionManager?.downloadTranscriptionAsText();
+window.refreshLists = () => {
+    transcriptionManager?.loadAvailableAudioFiles();
+    if (window.loadDownloads) {
+        window.loadDownloads();
+    }
+};
+
+// Toggle between URL and file transcription sources
+window.toggleTranscriptionSource = () => {
+    const isUrl = document.querySelector('input[name="transcriptionSource"]:checked')?.value === 'url';
+    const urlInputGroup = document.getElementById('urlInputGroup');
+    const fileSelectGroup = document.getElementById('audioFileSelect').parentElement;
+    
+    if (isUrl) {
+        urlInputGroup.style.display = 'block';
+        fileSelectGroup.style.display = 'none';
+    } else {
+        urlInputGroup.style.display = 'none';
+        fileSelectGroup.style.display = 'block';
+    }
+    
+    // Update button state
+    transcriptionManager?.updateTranscribeButtonState();
+};

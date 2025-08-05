@@ -10,6 +10,30 @@ import threading
 from pathlib import Path
 from resource_manager import ResourceManager
 
+# Import SenseVoice transcription
+try:
+    from sensevoice_transcription import (
+        is_sensevoice_available,
+        transcribe_with_sensevoice,
+        transcribe_with_sensevoice_streaming,
+        transcribe_with_sensevoice_from_array,
+        get_sensevoice_status
+    )
+    SENSEVOICE_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"SenseVoice not available: {e}")
+    SENSEVOICE_AVAILABLE = False
+
+# Import Whisper transcription
+from whisper_transcription import (
+    is_whisper_available,
+    transcribe_from_url_with_whisper,
+    transcribe_from_url_streaming_whisper_generator,
+    WhisperTranscriber,
+    get_whisper_status
+)
+WHISPER_AVAILABLE = True
+
 try:
     from pydub import AudioSegment
     PYDUB_AVAILABLE = True
@@ -909,6 +933,517 @@ def download_file(filename):
         return jsonify({'error': 'File not found'}), 404
     
     return send_file(str(file_path), as_attachment=True)
+
+@app.route('/sensevoice-status')
+def sensevoice_status():
+    """Get SenseVoice transcription status"""
+    if not SENSEVOICE_AVAILABLE:
+        return jsonify({
+            'available': False,
+            'error': 'SenseVoice not installed or not working'
+        })
+    
+    try:
+        status = get_sensevoice_status()
+        return jsonify(status)
+    except Exception as e:
+        logging.error(f"Error getting SenseVoice status: {e}")
+        return jsonify({
+            'available': False,
+            'error': f'SenseVoice error: {str(e)}'
+        })
+
+@app.route('/whisper-status')
+def whisper_status():
+    """Get Whisper transcription status"""
+    if not WHISPER_AVAILABLE:
+        return jsonify({
+            'available': False,
+            'error': 'Whisper not installed or not working'
+        })
+    
+    try:
+        status = get_whisper_status()
+        return jsonify(status)
+    except Exception as e:
+        logging.error(f"Error getting Whisper status: {e}")
+        return jsonify({
+            'available': False,
+            'error': f'Whisper error: {str(e)}'
+        })
+
+@app.route('/transcribe-url', methods=['POST', 'GET'])
+def transcribe_url():
+    """Transcribe audio directly from YouTube URL with optimized streaming"""
+    try:
+        # Handle both POST and GET for streaming support
+        if request.method == 'GET':
+            url = request.args.get('url')
+            language = request.args.get('language', 'auto')
+            streaming = request.args.get('streaming', 'false').lower() == 'true'
+        else:
+            data = request.json
+            url = data.get('url')
+            language = data.get('language', 'auto')
+            streaming = data.get('streaming', False)
+        
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+        
+        # Ensure user has session
+        if 'user_id' not in session:
+            session['user_id'] = str(uuid.uuid4())
+            user_downloads[session['user_id']] = []
+        
+        user_id = session['user_id']
+        logging.info(f"Starting optimized URL transcription for user {user_id}: {url}")
+        
+        # Check if SenseVoice is available
+        if not SENSEVOICE_AVAILABLE:
+            return jsonify({
+                'error': 'SenseVoice transcription service is not available. Please try again later.'
+            }), 503
+        
+        # Define languages that SenseVoice handles well
+        sensevoice_optimal_languages = ['zh', 'zh-CN', 'zh-TW', 'yue', 'ja', 'ko']
+        
+        # Use Whisper for non-Asian languages (including when auto detection)
+        # For auto mode, we'll determine which model to use after detecting the language
+        if WHISPER_AVAILABLE and language != 'auto' and language not in sensevoice_optimal_languages:
+            logging.info(f"Using Whisper for transcription (language: {language})")
+            
+            # If streaming is requested, return SSE
+            if streaming:
+                def generate_whisper_streaming_response():
+                    import json
+                    try:
+                        for chunk in transcribe_from_url_streaming_whisper_generator(url, language):
+                            yield f"data: {json.dumps(chunk)}\n\n"
+                    except Exception as e:
+                        error_data = {
+                            'success': False,
+                            'error': str(e),
+                            'final': True
+                        }
+                        yield f"data: {json.dumps(error_data)}\n\n"
+                
+                from flask import Response
+                return Response(
+                    generate_whisper_streaming_response(),
+                    mimetype='text/event-stream',
+                    headers={
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                )
+            else:
+                # Non-streaming mode - still use streaming internally to avoid download
+                result = transcribe_from_url_with_whisper(url, language, streaming=True)
+                
+                if result.get('success'):
+                    return jsonify(result)
+                else:
+                    # Fallback to SenseVoice if Whisper fails
+                    logging.warning(f"Whisper failed: {result.get('error')}, falling back to SenseVoice")
+        
+        # For explicit non-Asian languages without Whisper, tell user to use client-side
+        if not WHISPER_AVAILABLE and language != 'auto' and language not in sensevoice_optimal_languages:
+            return jsonify({
+                'error': 'For this language, please download the audio file first to use client-side Whisper transcription.',
+                'suggested_action': 'download_first'
+            }), 400
+        
+        # Extract direct audio stream URL from YouTube
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+        }
+        
+        logging.info(f"Extracting audio stream URL from: {url}")
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            video_title = info.get('title', 'Unknown')
+            duration = info.get('duration', 0)
+            
+            # Find best audio format (prefer higher quality for transcription)
+            best_audio = None
+            audio_formats = []
+            
+            # Collect all audio-only formats
+            for fmt in info.get('formats', []):
+                if fmt.get('acodec') != 'none' and fmt.get('vcodec') == 'none':
+                    audio_formats.append(fmt)
+            
+            # Sort by audio bitrate (higher is better) for quality
+            audio_formats.sort(key=lambda f: f.get('abr', 0) or 0, reverse=True)
+            
+            # Try to find best quality format (prefer m4a/mp4 for compatibility, then opus/webm)
+            for codec_preference in ['mp4a', 'm4a', 'opus', 'vorbis']:
+                for fmt in audio_formats:
+                    if codec_preference in fmt.get('acodec', ''):
+                        best_audio = fmt
+                        break
+                if best_audio:
+                    break
+            
+            # If no preferred codec found, just use highest bitrate
+            if not best_audio and audio_formats:
+                best_audio = audio_formats[0]
+            
+            if not best_audio:
+                return jsonify({'error': 'No audio stream found'}), 400
+            
+            audio_url = best_audio['url']
+            logging.info(f"Found audio stream: {best_audio.get('acodec')} at {best_audio.get('abr', 'unknown')} kbps")
+        
+        # Use ffmpeg to stream directly to SenseVoice
+        import subprocess
+        import numpy as np
+        
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', audio_url,
+            '-f', 'wav',
+            '-acodec', 'pcm_s16le',
+            '-ar', '16000',
+            '-ac', '1',
+            '-'
+        ]
+        
+        # If streaming is requested, return Server-Sent Events
+        if streaming:
+            def generate_streaming_response():
+                import json
+                
+                process = subprocess.Popen(
+                    ffmpeg_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL
+                )
+                
+                # Process with chunked streaming
+                chunk_size = 16000 * 30  # 30-second chunks
+                chunk_count = 0
+                total_transcript = []
+                detected_language = None
+                
+                # Initialize variables for language detection
+                use_language = language if language != 'auto' else None
+                detected_language = None
+                whisper_transcriber = None
+                
+                # Initialize Whisper if available for auto detection
+                if language == 'auto' and WHISPER_AVAILABLE:
+                    try:
+                        whisper_transcriber = WhisperTranscriber(model_size="base")
+                        logging.info("Auto language detection requested, will use Whisper to detect from first chunk")
+                    except Exception as e:
+                        logging.warning(f"Failed to initialize Whisper: {e}")
+                        use_language = 'zh'  # Fallback to Chinese for SenseVoice
+                
+                try:
+                    while True:
+                        chunk = process.stdout.read(chunk_size * 2)  # 2 bytes per sample
+                        if not chunk:
+                            break
+                        
+                        # Convert to numpy array
+                        audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                        
+                        # Transcribe chunk if it's long enough (at least 1 second)
+                        if len(audio_chunk) > 16000:
+                            chunk_count += 1
+                            logging.info(f"Transcribing chunk {chunk_count} ({len(audio_chunk)/16000:.1f}s)")
+                            
+                            # Detect language from first chunk if auto mode
+                            if chunk_count == 1 and language == 'auto' and whisper_transcriber:
+                                try:
+                                    detected_language = whisper_transcriber.detect_language(audio_chunk)
+                                    logging.info(f"Detected language: {detected_language}")
+                                    
+                                    # Decide which model to use based on detected language
+                                    if detected_language in sensevoice_optimal_languages:
+                                        use_language = detected_language
+                                        logging.info(f"Using SenseVoice for {detected_language}")
+                                    else:
+                                        # Use Whisper for non-Asian languages
+                                        result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                        if result.get('success'):
+                                            text = result['text'].strip()
+                                            if text and len(text) > 1:
+                                                total_transcript.append(text)
+                                                chunk_data = {
+                                                    'success': True,
+                                                    'text': text,
+                                                    'chunk': chunk_count,
+                                                    'model': 'whisper',
+                                                    'language': detected_language,
+                                                    'final': False
+                                                }
+                                                yield f"data: {json.dumps(chunk_data)}\n\n"
+                                        continue  # Skip SenseVoice processing
+                                except Exception as e:
+                                    logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
+                                    use_language = 'zh'
+                                    detected_language = 'zh'
+                            
+                            # Use appropriate transcription based on language
+                            if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
+                                # Use Whisper for non-Asian languages
+                                result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                model_used = 'whisper'
+                            else:
+                                # Use SenseVoice for Asian languages or fallback
+                                result = transcribe_with_sensevoice_from_array(
+                                    audio_array=audio_chunk,
+                                    sample_rate=16000,
+                                    language=use_language or 'zh',
+                                    model_name='SenseVoiceSmall'
+                                )
+                                model_used = 'sensevoice'
+                            
+                            if result.get('success') and result.get('text'):
+                                # Filter out empty or very short transcripts
+                                text = result['text'].strip()
+                                if text and len(text) > 1:  # Skip single character results
+                                    total_transcript.append(text)
+                                    
+                                    # Send chunk data via SSE
+                                    chunk_data = {
+                                        'success': True,
+                                        'text': text,
+                                        'chunk': chunk_count,
+                                        'final': False
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                                    logging.info(f"Chunk {chunk_count} sent: {len(text)} chars")
+                    
+                    process.wait()
+                    
+                    # Send final result
+                    # Determine which model was predominantly used
+                    final_model = 'SenseVoice'
+                    if detected_language and detected_language not in sensevoice_optimal_languages:
+                        final_model = 'Whisper'
+                    
+                    final_data = {
+                        'success': True,
+                        'transcript': ' '.join(total_transcript),
+                        'model': final_model,
+                        'language': detected_language or use_language,
+                        'duration': duration,
+                        'title': video_title,
+                        'chunks_processed': chunk_count,
+                        'final': True
+                    }
+                    yield f"data: {json.dumps(final_data)}\n\n"
+                    
+                except Exception as e:
+                    process.terminate()
+                    error_data = {
+                        'success': False,
+                        'error': f'Streaming error: {str(e)}',
+                        'final': True
+                    }
+                    yield f"data: {json.dumps(error_data)}\n\n"
+            
+            from flask import Response
+            return Response(
+                generate_streaming_response(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            )
+        
+        # Non-streaming mode (original implementation)
+        logging.info("Starting ffmpeg streaming process")
+        
+        process = subprocess.Popen(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
+        
+        # Process with chunked streaming
+        chunk_size = 16000 * 30  # 30-second chunks
+        transcripts = []
+        chunk_count = 0
+        detected_language = None  # For auto language detection
+        
+        # If language is 'auto', we need to detect it from the first chunk
+        # by saving to a temporary file
+        if language == 'auto':
+            logging.info("Language set to 'auto', will detect from first chunk")
+        
+        try:
+            while True:
+                chunk = process.stdout.read(chunk_size * 2)  # 2 bytes per sample
+                if not chunk:
+                    break
+                
+                # Convert to numpy array
+                audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                
+                # Transcribe chunk if it's long enough (at least 1 second)
+                if len(audio_chunk) > 16000:
+                    chunk_count += 1
+                    logging.info(f"Transcribing chunk {chunk_count} ({len(audio_chunk)/16000:.1f}s)")
+                    
+                    # For auto language detection, default to Chinese since SenseVoice is optimized for Asian languages
+                    if language == 'auto':
+                        use_language = 'zh'  # Default to Chinese for auto mode
+                        if chunk_count == 1:
+                            logging.info("Auto language detection requested, defaulting to Chinese (zh) for SenseVoice")
+                    else:
+                        use_language = language
+                    
+                    # Always use the specific language for array transcription
+                    result = transcribe_with_sensevoice_from_array(
+                        audio_array=audio_chunk,
+                        sample_rate=16000,
+                        language=use_language,
+                        model_name='SenseVoiceSmall'
+                    )
+                    
+                    if result.get('success') and result.get('text'):
+                        # Filter out empty or very short transcripts
+                        text = result['text'].strip()
+                        if text and len(text) > 1:  # Skip single character results
+                            transcripts.append(text)
+                            logging.info(f"Chunk {chunk_count} transcribed successfully: {len(text)} chars")
+                        else:
+                            logging.info(f"Chunk {chunk_count} returned empty/short text, skipping")
+                    else:
+                        logging.warning(f"Chunk {chunk_count} transcription failed: {result.get('error')}")
+            
+            process.wait()
+            
+            if process.returncode != 0:
+                logging.warning(f"FFmpeg process ended with return code: {process.returncode}")
+            
+            # Combine all transcripts
+            full_transcript = ' '.join(transcripts)
+            
+            logging.info(f"Transcription completed: {chunk_count} chunks processed")
+            
+            return jsonify({
+                'success': True,
+                'transcript': full_transcript,
+                'model': 'SenseVoice',
+                'language': detected_language if detected_language else language,
+                'duration': duration,
+                'title': video_title,
+                'chunks_processed': chunk_count
+            })
+            
+        except Exception as e:
+            process.terminate()
+            raise e
+            
+    except Exception as e:
+        logging.error(f"Optimized URL transcription error: {e}")
+        return jsonify({'error': f'Transcription failed: {str(e)}'}), 500
+
+@app.route('/transcribe', methods=['GET', 'POST'])
+def transcribe_audio():
+    """Transcribe audio file using SenseVoice with streaming support"""
+    try:
+        # Check if SenseVoice is available
+        if not SENSEVOICE_AVAILABLE:
+            return jsonify({
+                'success': False,
+                'error': 'SenseVoice is not available'
+            }), 400
+        
+        # Ensure user has session
+        if 'user_id' not in session:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        # Handle GET request for Server-Sent Events
+        if request.method == 'GET':
+            filename = request.args.get('filename')
+            language = request.args.get('language', 'auto')
+            model_name = request.args.get('model', 'SenseVoiceSmall')
+            streaming = request.args.get('streaming', 'false').lower() == 'true'
+        else:
+            # Handle POST request (legacy)
+            data = request.json
+            filename = data.get('filename')
+            language = data.get('language', 'auto')
+            model_name = data.get('model', 'SenseVoiceSmall')  # Default to small model
+            streaming = data.get('streaming', False)  # Support both streaming and non-streaming
+        
+        if not filename:
+            return jsonify({
+                'success': False,
+                'error': 'Filename is required'
+            }), 400
+        
+        user_id = session['user_id']
+        user_downloads_dir = Path('downloads') / user_id
+        audio_file_path = user_downloads_dir / filename
+        
+        # Check if file exists
+        if not audio_file_path.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Audio file not found: {filename}'
+            }), 404
+        
+        # Check if file is audio format
+        if not audio_file_path.suffix.lower() in ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.webm']:
+            return jsonify({
+                'success': False,
+                'error': f'Unsupported audio format: {audio_file_path.suffix}'
+            }), 400
+        
+        logging.info(f"🎤 Starting transcription for {filename} (language: {language}, model: {model_name}, streaming: {streaming})")
+        
+        if streaming:
+            # Return streaming response
+            def generate_streaming_response():
+                try:
+                    for chunk in transcribe_with_sensevoice_streaming(str(audio_file_path), language, model_name):
+                        # Convert to JSON string for SSE
+                        import json
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                except Exception as e:
+                    error_chunk = {
+                        'success': False,
+                        'error': f'Streaming transcription error: {str(e)}',
+                        'final': True
+                    }
+                    import json
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
+            
+            from flask import Response
+            return Response(
+                generate_streaming_response(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            )
+        else:
+            # Non-streaming transcription (legacy support)
+            result = transcribe_with_sensevoice(str(audio_file_path), language, model_name)
+            logging.info(f"📝 Transcription completed: success={result.get('success', False)}")
+            return jsonify(result)
+        
+    except Exception as e:
+        logging.error(f"Transcription endpoint error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Internal error: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     import os
