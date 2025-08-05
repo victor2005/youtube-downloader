@@ -1066,12 +1066,19 @@ def transcribe_url_poll():
                 if not audio_formats:
                     raise Exception('No audio stream found')
                 
-                # Sort by audio quality
-                audio_formats.sort(key=lambda x: (
-                    x.get('abr', 0),
-                    x.get('asr', 0),
-                    -x.get('filesize', float('inf'))
-                ), reverse=True)
+                # Sort by audio quality (handle None values properly)
+                def get_sort_key(x):
+                    abr = x.get('abr') or 0
+                    asr = x.get('asr') or 0
+                    filesize = x.get('filesize')
+                    # Handle None filesize
+                    if filesize is None:
+                        filesize_score = 0
+                    else:
+                        filesize_score = -filesize
+                    return (abr, asr, filesize_score)
+                
+                audio_formats.sort(key=get_sort_key, reverse=True)
                 
                 best_audio = audio_formats[0]
                 audio_url = best_audio['url']
