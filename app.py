@@ -34,6 +34,34 @@ from whisper_transcription import (
 )
 WHISPER_AVAILABLE = True
 
+# Pre-load models on startup
+PRELOADED_WHISPER = None
+PRELOADED_SENSEVOICE = None
+
+def preload_models():
+    """Pre-load transcription models to reduce initial transcription delay"""
+    global PRELOADED_WHISPER, PRELOADED_SENSEVOICE
+    
+    # Pre-load Whisper model
+    if WHISPER_AVAILABLE and not PRELOADED_WHISPER:
+        try:
+            logging.info("Pre-loading Whisper model...")
+            PRELOADED_WHISPER = WhisperTranscriber(model_size="base")
+            logging.info("Whisper model pre-loaded successfully")
+        except Exception as e:
+            logging.warning(f"Failed to pre-load Whisper model: {e}")
+    
+    # Pre-load SenseVoice model
+    if SENSEVOICE_AVAILABLE and not PRELOADED_SENSEVOICE:
+        try:
+            logging.info("Pre-loading SenseVoice model...")
+            # Import and initialize SenseVoice model
+            from funasr import AutoModel
+            PRELOADED_SENSEVOICE = AutoModel(model="iic/SenseVoiceSmall")
+            logging.info("SenseVoice model pre-loaded successfully")
+        except Exception as e:
+            logging.warning(f"Failed to pre-load SenseVoice model: {e}")
+
 try:
     from pydub import AudioSegment
     PYDUB_AVAILABLE = True
@@ -1119,7 +1147,8 @@ def transcribe_url_poll():
                 # Initialize Whisper if available for auto detection
                 if language == 'auto' and WHISPER_AVAILABLE:
                     try:
-                        whisper_transcriber = WhisperTranscriber(model_size="base")
+                        # Use pre-loaded model if available, otherwise create new one
+                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="base")
                         logging.info("Auto language detection requested, will use Whisper to detect from first chunk")
                     except Exception as e:
                         logging.warning(f"Failed to initialize Whisper: {e}")
@@ -1381,10 +1410,14 @@ def transcribe_url():
                 )
                 
                 # Process with chunked streaming
-                chunk_size = 16000 * 30  # 30-second chunks
+                # Use 30-second chunks for language detection, then switch to natural pauses
+                initial_chunk_size = 16000 * 30  # 30-second chunks for language detection
+                normal_chunk_size = 16000 * 10   # 10-second chunks for transcription
                 chunk_count = 0
                 total_transcript = []
                 detected_language = None
+                language_detected = False
+                audio_buffer = np.array([], dtype=np.float32)
                 
                 # Initialize variables for language detection
                 use_language = language if language != 'auto' else None
@@ -1402,23 +1435,31 @@ def transcribe_url():
                 
                 try:
                     while True:
-                        chunk = process.stdout.read(chunk_size * 2)  # 2 bytes per sample
+                        # Use larger chunks for initial language detection, smaller chunks after
+                        current_chunk_size = initial_chunk_size if not language_detected else normal_chunk_size
+                        
+                        chunk = process.stdout.read(current_chunk_size * 2)  # 2 bytes per sample
                         if not chunk:
                             break
                         
                         # Convert to numpy array
                         audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
                         
-                        # Transcribe chunk if it's long enough (at least 1 second)
-                        if len(audio_chunk) > 16000:
+                        # Add to buffer for natural pause detection
+                        audio_buffer = np.concatenate([audio_buffer, audio_chunk])
+                        
+                        # For first chunk (language detection), process the full 30-second chunk
+                        if not language_detected and len(audio_buffer) >= initial_chunk_size:
+                            # Process the language detection chunk
                             chunk_count += 1
-                            logging.info(f"Processing chunk {chunk_count}: {len(audio_chunk)/16000:.1f}s) with language: {use_language}")
+                            logging.info(f"Processing language detection chunk {chunk_count}: {len(audio_buffer)/16000:.1f}s")
                             
                             # Detect language from first chunk if auto mode
                             if chunk_count == 1 and language == 'auto' and whisper_transcriber:
                                 try:
-                                    detected_language = whisper_transcriber.detect_language(audio_chunk)
+                                    detected_language = whisper_transcriber.detect_language(audio_buffer[:initial_chunk_size])
                                     logging.info(f"Detected language: {detected_language}")
+                                    language_detected = True
                                     
                                     # Decide which model to use based on detected language
                                     if detected_language in sensevoice_optimal_languages:
@@ -1426,7 +1467,7 @@ def transcribe_url():
                                         logging.info(f"Using SenseVoice for {detected_language}")
                                     else:
                                         # Use Whisper for non-Asian languages
-                                        result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                        result = whisper_transcriber.transcribe(audio_buffer[:initial_chunk_size], language=detected_language)
                                         if result.get('success'):
                                             text = result['text'].strip()
                                             if text and len(text) > 1:
@@ -1440,21 +1481,22 @@ def transcribe_url():
                                                     'final': False
                                                 }
                                                 yield f"data: {json.dumps(chunk_data)}\n\n"
-                                        continue  # Skip SenseVoice processing
+                                        # Keep remaining buffer for next processing
+                                        audio_buffer = audio_buffer[initial_chunk_size:]
+                                        continue  # Skip SenseVoice processing for this chunk
                                 except Exception as e:
                                     logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
                                     use_language = 'zh'
                                     detected_language = 'zh'
+                                    language_detected = True
                             
-                            # Use appropriate transcription based on language
+                            # Process the detection chunk with appropriate model
                             if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
-                                # Use Whisper for non-Asian languages
-                                result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                result = whisper_transcriber.transcribe(audio_buffer[:initial_chunk_size], language=detected_language)
                                 model_used = 'whisper'
                             else:
-                                # Use SenseVoice for Asian languages or fallback
                                 result = transcribe_with_sensevoice_from_array(
-                                    audio_array=audio_chunk,
+                                    audio_array=audio_buffer[:initial_chunk_size],
                                     sample_rate=16000,
                                     language=use_language or 'zh',
                                     model_name='SenseVoiceSmall'
@@ -1462,12 +1504,9 @@ def transcribe_url():
                                 model_used = 'sensevoice'
                             
                             if result.get('success') and result.get('text'):
-                                # Filter out empty or very short transcripts
                                 text = result['text'].strip()
-                                if text and len(text) > 1:  # Skip single character results
+                                if text and len(text) > 1:
                                     total_transcript.append(text)
-                                    
-                                    # Send chunk data via SSE
                                     chunk_data = {
                                         'success': True,
                                         'text': text,
@@ -1475,7 +1514,87 @@ def transcribe_url():
                                         'final': False
                                     }
                                     yield f"data: {json.dumps(chunk_data)}\n\n"
-                                    logging.info(f"Chunk {chunk_count} sent: {len(text)} chars")
+                                    logging.info(f"Language detection chunk {chunk_count} sent: {len(text)} chars")
+                            
+                            # Keep remaining buffer and mark language as detected
+                            audio_buffer = audio_buffer[initial_chunk_size:]
+                            language_detected = True
+                        
+                        # After language detection, process in smaller natural pause chunks
+                        elif language_detected and len(audio_buffer) >= normal_chunk_size:
+                            # Find natural pause points using energy-based detection
+                            def find_natural_pause(audio_data, min_chunk_size=16000*5, max_chunk_size=16000*15):
+                                """Find natural pause points in audio using energy detection"""
+                                if len(audio_data) < min_chunk_size:
+                                    return len(audio_data)  # Return full length if too short
+                                
+                                # Calculate energy in overlapping windows
+                                window_size = 1600  # 0.1 second windows
+                                hop_size = 800      # 0.05 second hops
+                                energies = []
+                                
+                                for i in range(0, len(audio_data) - window_size, hop_size):
+                                    window = audio_data[i:i + window_size]
+                                    energy = np.sum(window ** 2)
+                                    energies.append(energy)
+                                
+                                if not energies:
+                                    return min_chunk_size
+                                
+                                # Find low energy regions (potential pauses)
+                                energy_threshold = np.percentile(energies, 25)  # Bottom 25% of energy
+                                
+                                # Look for pause points between min and max chunk size
+                                start_search = min_chunk_size // hop_size
+                                end_search = min(len(energies), max_chunk_size // hop_size)
+                                
+                                best_pause = min_chunk_size
+                                for i in range(start_search, end_search):
+                                    if energies[i] < energy_threshold:
+                                        # Found a low energy point - good place to split
+                                        best_pause = i * hop_size + window_size // 2
+                                        break
+                                
+                                return min(best_pause, len(audio_data))
+                            
+                            # Find natural pause point
+                            pause_point = find_natural_pause(audio_buffer)
+                            
+                            # Process chunk up to pause point
+                            process_chunk = audio_buffer[:pause_point]
+                            
+                            if len(process_chunk) > 16000:  # At least 1 second
+                                chunk_count += 1
+                                logging.info(f"Processing natural pause chunk {chunk_count}: {len(process_chunk)/16000:.1f}s")
+                                
+                                # Use appropriate transcription based on detected language
+                                if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
+                                    result = whisper_transcriber.transcribe(process_chunk, language=detected_language)
+                                    model_used = 'whisper'
+                                else:
+                                    result = transcribe_with_sensevoice_from_array(
+                                        audio_array=process_chunk,
+                                        sample_rate=16000,
+                                        language=use_language or 'zh',
+                                        model_name='SenseVoiceSmall'
+                                    )
+                                    model_used = 'sensevoice'
+                                
+                                if result.get('success') and result.get('text'):
+                                    text = result['text'].strip()
+                                    if text and len(text) > 1:
+                                        total_transcript.append(text)
+                                        chunk_data = {
+                                            'success': True,
+                                            'text': text,
+                                            'chunk': chunk_count,
+                                            'final': False
+                                        }
+                                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                                        logging.info(f"Natural pause chunk {chunk_count} sent: {len(text)} chars")
+                            
+                            # Keep remaining buffer
+                            audio_buffer = audio_buffer[pause_point:]
                     
                     process.wait()
                     
@@ -1704,6 +1823,11 @@ def transcribe_audio():
 if __name__ == '__main__':
     import os
     try:
+        # Pre-load models on startup
+        logging.info("Starting model pre-loading...")
+        preload_models()
+        logging.info("Model pre-loading completed")
+        
         port = int(os.environ.get('PORT', 8080))
         logging.info(f"Starting Flask app on port {port}")
         app.run(debug=False, host='0.0.0.0', port=port)
