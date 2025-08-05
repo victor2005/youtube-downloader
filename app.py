@@ -1115,6 +1115,9 @@ def transcribe_url():
         
         # If streaming is requested, return Server-Sent Events
         if streaming:
+            # Check if we're on Railway (which doesn't support SSE well)
+            is_railway = os.environ.get('RAILWAY_ENVIRONMENT') is not None
+            
             def generate_streaming_response():
                 import json
                 
