@@ -8,3 +8,4 @@ psutil
 torch
 funasr
 openai-whisper
+gevent==24.2.1
