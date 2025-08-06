@@ -1570,28 +1570,59 @@ def transcribe_url():
                     bytes_per_sample = 2
                     read_chunk_size = sample_rate * bytes_per_sample * 2  # Read 2 seconds at a time
                     
-                    # For natural pause detection
-                    silence_threshold = 0.01
-                    min_silence_duration = 0.3  # 300ms pause
+                    # For natural pause detection - tune for better boundary detection
+                    silence_threshold = 0.02  # Slightly higher threshold for clearer pauses
+                    min_silence_duration = 0.25  # 250ms pause (slightly shorter for responsiveness)
                     silence_samples = int(min_silence_duration * sample_rate)
                     
-                    def find_natural_pause(audio, start_pos, search_window=2.0):
-                        """Find a natural pause within search_window seconds from start_pos"""
+                    def find_natural_pause(audio, start_pos, search_window=3.0):
+                        """Find the best natural pause within search_window seconds from start_pos"""
                         search_samples = int(search_window * sample_rate)
                         end_pos = min(start_pos + search_samples, len(audio))
                         
                         if start_pos >= len(audio):
                             return len(audio)
                         
-                        # Look for silence in the search window
+                        # Look for the longest silence in the search window
+                        best_pause_pos = start_pos
+                        best_silence_score = 0
+                        
+                        # Use a sliding window to find silence
                         for i in range(start_pos, end_pos - silence_samples):
                             window = audio[i:i + silence_samples]
-                            if np.max(np.abs(window)) < silence_threshold:
-                                # Found a pause, return position after the pause
-                                return i + silence_samples
+                            # Calculate silence score (lower energy = better pause point)
+                            window_energy = np.mean(np.abs(window))
+                            
+                            if window_energy < silence_threshold:
+                                # Calculate a score based on how quiet and centered the pause is
+                                silence_score = (silence_threshold - window_energy) / silence_threshold
+                                # Prefer pauses closer to our target position
+                                position_weight = 1.0 - abs(i - start_pos) / search_samples * 0.3
+                                weighted_score = silence_score * position_weight
+                                
+                                if weighted_score > best_silence_score:
+                                    best_silence_score = weighted_score
+                                    # Place cut at the end of the silence window
+                                    best_pause_pos = i + silence_samples
                         
-                        # No pause found, return the original position
-                        return start_pos
+                        # If we found a good pause, use it
+                        if best_silence_score > 0.3:  # Threshold for accepting a pause
+                            logging.debug(f"Found good pause with score {best_silence_score:.2f} at {best_pause_pos/sample_rate:.1f}s")
+                            return best_pause_pos
+                        
+                        # No ideal pause found, look for the lowest energy point
+                        min_energy_pos = start_pos
+                        min_energy = float('inf')
+                        energy_window = int(0.05 * sample_rate)  # 50ms window for energy calculation
+                        
+                        for i in range(start_pos, end_pos - energy_window, energy_window // 2):
+                            window_energy = np.mean(np.abs(audio[i:i+energy_window]))
+                            if window_energy < min_energy:
+                                min_energy = window_energy
+                                min_energy_pos = i
+                        
+                        logging.debug(f"Using lowest energy point at {min_energy_pos/sample_rate:.1f}s")
+                        return min_energy_pos
                     
                     bytes_read = 0
                     last_process_pos = 0
@@ -1688,11 +1719,9 @@ def transcribe_url():
                             # Extract chunk to process
                             process_chunk = audio_array_buffer[:process_end_pos]
                             
-                            # Keep a small overlap to avoid cutting words (0.2 seconds)
-                            # Reduced from 0.5 to minimize duplicate text
-                            overlap_samples = int(0.2 * sample_rate)
-                            keep_start = max(0, process_end_pos - overlap_samples)
-                            audio_array_buffer = audio_array_buffer[keep_start:]
+                            # No overlap - we cut precisely at the natural pause
+                            # The pause detection already ensures we're not cutting mid-word
+                            audio_array_buffer = audio_array_buffer[process_end_pos:]
                             
                             chunk_count += 1
                             chunk_duration = len(process_chunk) / sample_rate
@@ -1726,36 +1755,17 @@ def transcribe_url():
                             if result.get('success') and result.get('text'):
                                 text = result['text'].strip()
                                 if text and len(text) > 1:
-                                    # Check for and remove duplicate text from overlap
-                                    if total_transcript and chunk_count > 1:
-                                        # Get last few words from previous transcript
-                                        last_transcript = total_transcript[-1]
-                                        last_words = last_transcript.split()[-5:] if last_transcript else []
-                                        
-                                        # Check if current text starts with any of the last words
-                                        if last_words:
-                                            current_words = text.split()
-                                            for i in range(len(last_words)):
-                                                # Try matching from different positions
-                                                overlap_candidate = ' '.join(last_words[i:])
-                                                if text.startswith(overlap_candidate):
-                                                    # Remove the overlapping part
-                                                    text = text[len(overlap_candidate):].strip()
-                                                    logging.info(f"Removed overlap: '{overlap_candidate}'")
-                                                    break
-                                    
-                                    # Only add non-empty text after overlap removal
-                                    if text:
-                                        total_transcript.append(text)
-                                        chunk_data = {
-                                            'success': True,
-                                            'text': text,
-                                            'chunk': chunk_count,
-                                            'model': model_used,
-                                            'language': detected_language,
-                                            'final': False
-                                        }
-                                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                                    # No overlap removal needed since we're cutting at natural pauses
+                                    total_transcript.append(text)
+                                    chunk_data = {
+                                        'success': True,
+                                        'text': text,
+                                        'chunk': chunk_count,
+                                        'model': model_used,
+                                        'language': detected_language,
+                                        'final': False
+                                    }
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
 
                     # Send final result after all segments processed
                     final_data = {
