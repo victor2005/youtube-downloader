@@ -48,6 +48,11 @@ def preload_models():
     if WHISPER_AVAILABLE and not PRELOADED_WHISPER:
         try:
             logging.info("Pre-loading Whisper model...")
+            # Set cache directory if specified in environment
+            whisper_cache = os.environ.get('WHISPER_CACHE_DIR')
+            if whisper_cache:
+                logging.info(f"Using Whisper cache directory: {whisper_cache}")
+                os.environ['XDG_CACHE_HOME'] = whisper_cache
             PRELOADED_WHISPER = WhisperTranscriber(model_size="base")
             logging.info("Whisper model pre-loaded successfully")
         except Exception as e:
@@ -59,7 +64,13 @@ def preload_models():
             logging.info("Pre-loading SenseVoice model...")
             # Import and initialize SenseVoice model
             from funasr import AutoModel
-            PRELOADED_SENSEVOICE = AutoModel(model="iic/SenseVoiceSmall")
+            # Use cache directory if specified
+            cache_dir = os.environ.get('MODELSCOPE_CACHE', None)
+            if cache_dir:
+                logging.info(f"Using SenseVoice cache directory: {cache_dir}")
+                PRELOADED_SENSEVOICE = AutoModel(model="iic/SenseVoiceSmall", cache_dir=cache_dir)
+            else:
+                PRELOADED_SENSEVOICE = AutoModel(model="iic/SenseVoiceSmall")
             logging.info("SenseVoice model pre-loaded successfully")
             # Register the pre-loaded model with the transcription module
             set_preloaded_sensevoice_model(PRELOADED_SENSEVOICE)

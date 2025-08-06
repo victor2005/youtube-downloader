@@ -46,6 +46,13 @@ class WhisperTranscriber:
             else:
                 self.device = "cpu"
             
+            # Check if we should use cached model directory from Docker build
+            whisper_cache = os.environ.get('WHISPER_CACHE_DIR')
+            if whisper_cache:
+                logging.info(f"Using Whisper cache directory: {whisper_cache}")
+                # Set environment variable for whisper to use
+                os.environ['XDG_CACHE_HOME'] = whisper_cache
+            
             logging.info(f"Loading Whisper model '{self.model_size}' on {self.device}")
             self.model = whisper.load_model(self.model_size, device=self.device)
             logging.info("Whisper model loaded successfully")

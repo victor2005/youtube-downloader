@@ -84,13 +84,19 @@ class SenseVoiceTranscriber:
             
             logger.info(f"Loading {model_name} model ({config['description']})...")
             
+            # Check if we should use cached model directory from Docker build
+            cache_dir = os.environ.get('MODELSCOPE_CACHE')
+            if cache_dir:
+                logger.info(f"Using SenseVoice cache directory: {cache_dir}")
+            
             # Load model with optimized settings
             model = AutoModel(
                 model=model_dir,
                 trust_remote_code=True,
                 device="cpu",
                 disable_update=True,
-                disable_log=True  # Disable FunASR's verbose logging
+                disable_log=True,  # Disable FunASR's verbose logging
+                cache_dir=cache_dir if cache_dir else None
             )
             
             self.models[model_name] = model
