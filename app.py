@@ -1357,6 +1357,9 @@ def transcribe_url_poll():
                                         if text:
                                             total_transcript.append(text)
                                             transcription_progress['chunks'].append(text)
+                                            # Force update to ensure visibility
+                                            progress_key = f'transcribe_{session_id}'
+                                            download_progress[progress_key] = transcription_progress
                                             logging.info(f"Final chunk transcribed: {len(text)} chars")
                             break
                         
@@ -1457,6 +1460,9 @@ def transcribe_url_poll():
                                     if text:
                                         total_transcript.append(text)
                                         transcription_progress['chunks'].append(text)
+                                        # Force update to ensure visibility
+                                        progress_key = f'transcribe_{session_id}'
+                                        download_progress[progress_key] = transcription_progress
                                         logging.info(f"Chunk {chunk_count} transcribed: {len(text)} chars, Model: {model_used}")
                         
                     # Set final result
@@ -1493,7 +1499,18 @@ def get_transcribe_progress(session_id):
     """Get transcription progress for polling"""
     progress_key = f'transcribe_{session_id}'
     progress = download_progress.get(progress_key, {'status': 'not_found'})
-    return jsonify(progress)
+    
+    # Add timestamp to prevent caching
+    progress['timestamp'] = time.time()
+    
+    response = jsonify(progress)
+    # Add headers to prevent any caching
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
+    
+    return response
 
 @app.route('/transcribe-url', methods=['POST', 'GET'])
 def transcribe_url():
