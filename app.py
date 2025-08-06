@@ -44,6 +44,8 @@ def preload_models():
     """Pre-load transcription models to reduce initial transcription delay"""
     global PRELOADED_WHISPER, PRELOADED_SENSEVOICE
     
+    logging.info("=== MODEL PRELOADING STARTED ===")
+    
     # Pre-load Whisper model
     if WHISPER_AVAILABLE and not PRELOADED_WHISPER:
         try:
@@ -52,9 +54,22 @@ def preload_models():
             whisper_cache = os.environ.get('WHISPER_CACHE_DIR')
             if whisper_cache:
                 logging.info(f"Using Whisper cache directory: {whisper_cache}")
-                os.environ['XDG_CACHE_HOME'] = whisper_cache
+                # Check if cache exists
+                if os.path.exists(whisper_cache):
+                    logging.info(f"✓ Whisper cache directory exists with {len(os.listdir(whisper_cache))} items")
+                else:
+                    logging.warning(f"⚠ Whisper cache directory does not exist: {whisper_cache}")
+            
+            import time
+            start_time = time.time()
             PRELOADED_WHISPER = WhisperTranscriber(model_size="small")
-            logging.info("Whisper 'small' model pre-loaded successfully")
+            load_time = time.time() - start_time
+            logging.info(f"Whisper 'small' model pre-loaded successfully in {load_time:.2f} seconds")
+            
+            if load_time < 5:
+                logging.info("✓ Whisper model loaded from cache (fast load)")
+            else:
+                logging.warning("⚠ Whisper model may have been downloaded (slow load)")
         except Exception as e:
             logging.warning(f"Failed to pre-load Whisper model: {e}")
     

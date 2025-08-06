@@ -1268,46 +1268,59 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
             let finalTranscript = '';
             let modelInfo = '';
             
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Received streaming data:', data);
-                    
-                    if (data.success) {
-                        if (data.final) {
-                            // Final result received
-                            eventSource.close();
-                            finalTranscript = data.transcript || transcriptChunks.join(' ');
-                            this.updateStatus('✅ Transcription complete!', 100);
-                            resolve(finalTranscript);
-                        } else {
-                            // Chunk received
-                            if (data.text) {
-                                transcriptChunks.push(data.text);
-                                // Update display with partial transcript
-                                const partialTranscript = transcriptChunks.join(' ');
-                                this.displayPartialTranscript(partialTranscript);
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Received streaming data:', data);
+                        
+                        if (data.success) {
+                            if (data.final) {
+                                // Final result received
+                                eventSource.close();
+                                finalTranscript = data.transcript || transcriptChunks.join(' ');
+                                this.updateStatus('✅ Transcription complete!', 100);
                                 
-                                // Update progress
-                                const progress = Math.min(50 + (data.chunk * 5), 95);
-                                this.updateStatus(`🎤 Transcribing chunk ${data.chunk}...`, progress);
+                                // Update final display
+                                this.elements.transcriptText.textContent = finalTranscript;
+                                this.elements.result.style.display = 'block';
+                                
+                                resolve(finalTranscript);
+                            } else {
+                                // Chunk received
+                                if (data.text) {
+                                    transcriptChunks.push(data.text);
+                                    // Update display with all chunks so far
+                                    this.fullTranscript = transcriptChunks.join(' ');
+                                    this.elements.transcriptText.textContent = this.fullTranscript + '\n\n⏳ Processing...';
+                                    
+                                    // Show result section if not visible
+                                    if (this.elements.result.style.display === 'none') {
+                                        this.elements.result.style.display = 'block';
+                                    }
+                                    
+                                    // Auto-scroll to bottom
+                                    this.elements.transcriptText.scrollTop = this.elements.transcriptText.scrollHeight;
+                                    
+                                    // Update progress
+                                    const progress = Math.min(50 + (data.chunk * 5), 95);
+                                    this.updateStatus(`🎤 Transcribing chunk ${data.chunk}...`, progress);
+                                }
+                            }
+                        } else if (data.error) {
+                            // Handle error
+                            eventSource.close();
+                            
+                            // Check if we need to download first for client-side transcription
+                            if (data.error.includes('download the audio file first')) {
+                                reject(new Error('For this language, please download the audio file first, then use the "Downloaded File" option to transcribe with Whisper.'));
+                            } else {
+                                reject(new Error(data.error));
                             }
                         }
-                    } else if (data.error) {
-                        // Handle error
-                        eventSource.close();
-                        
-                        // Check if we need to download first for client-side transcription
-                        if (data.error.includes('download the audio file first')) {
-                            reject(new Error('For this language, please download the audio file first, then use the "Downloaded File" option to transcribe with Whisper.'));
-                        } else {
-                            reject(new Error(data.error));
-                        }
+                    } catch (e) {
+                        console.error('Error parsing SSE data:', e);
                     }
-                } catch (e) {
-                    console.error('Error parsing SSE data:', e);
-                }
-            };
+                };
             
             eventSource.onerror = (error) => {
                 eventSource.close();

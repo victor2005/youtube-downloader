@@ -36,6 +36,28 @@ RUN python -c "import os; \
     model = AutoModel(model='iic/SenseVoiceSmall', cache_dir='/app/models/sensevoice'); \
     print('SenseVoice model downloaded successfully')"
 
+# Verify models are cached
+RUN python -c "import os; \
+    whisper_cache = '/app/models/whisper'; \
+    sensevoice_cache = '/app/models/sensevoice'; \
+    print('=== Verifying model cache ==='); \
+    if os.path.exists(whisper_cache): \
+        files = sum(len(files) for _, _, files in os.walk(whisper_cache)); \
+        size = sum(os.path.getsize(os.path.join(dirpath, filename)) \
+                  for dirpath, _, filenames in os.walk(whisper_cache) \
+                  for filename in filenames) / (1024*1024); \
+        print(f'✓ Whisper cache: {files} files, {size:.1f} MB'); \
+    else: \
+        print('✗ Whisper cache not found'); \
+    if os.path.exists(sensevoice_cache): \
+        files = sum(len(files) for _, _, files in os.walk(sensevoice_cache)); \
+        size = sum(os.path.getsize(os.path.join(dirpath, filename)) \
+                  for dirpath, _, filenames in os.walk(sensevoice_cache) \
+                  for filename in filenames) / (1024*1024); \
+        print(f'✓ SenseVoice cache: {files} files, {size:.1f} MB'); \
+    else: \
+        print('✗ SenseVoice cache not found')"
+
 # Copy application code
 COPY . .
 
@@ -45,8 +67,8 @@ RUN mkdir -p downloads
 # Expose port
 EXPOSE 8080
 
-# Disable model preloading at runtime since they're already in the image
-ENV PRELOAD_MODELS=false
+# Enable model preloading at runtime to use the cached models from build
+ENV PRELOAD_MODELS=true
 
-# Run the application
-CMD ["python", "app.py"]
+# Run startup check before the application
+CMD python startup_check.py && python app.py
