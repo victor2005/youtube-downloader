@@ -1996,23 +1996,11 @@ def transcribe_audio():
 if __name__ == '__main__':
     import os
     try:
-        # Pre-load models on startup in background thread
-        def background_preload():
-            try:
-                logging.info("Starting model pre-loading in background...")
-                preload_models()
-                logging.info("Model pre-loading completed in background")
-            except Exception as e:
-                logging.error(f"Failed to pre-load models: {e}")
-        
-        # Start preloading in background so app can start immediately
-        import threading
-        preload_thread = threading.Thread(target=background_preload)
-        preload_thread.daemon = True
-        preload_thread.start()
-        
+        # Models are already being loaded in background at module level (lines 86-100)
+        # They will be shared across all users and requests
         port = int(os.environ.get('PORT', 8080))
-        logging.info(f"Starting Flask app on port {port} (models loading in background)")
+        logging.info(f"Starting Flask app on port {port}")
+        logging.info("Note: Models are loading in background and will be shared across all users")
         app.run(debug=False, host='0.0.0.0', port=port)
     except Exception as e:
         logging.error(f"Failed to start Flask app: {e}")
