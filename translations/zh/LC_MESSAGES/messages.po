@@ -266,3 +266,11 @@ msgstr "注意"
 msgid "To use transcription, please first download an audio file (MP3) from YouTube using the download section above. Then select the audio file from the list below to transcribe it to text."
 msgstr "要使用转录功能，请先使用上面的下载部分从YouTube下载音频文件（MP3）。然后从下面的列表中选择音频文件进行文本转录。"
 
+#: templates/index.html:367
+msgid "Performance Tip"
+msgstr "性能提示"
+
+#: templates/index.html:367
+msgid "For best performance, select a specific language (instead of auto-detect) and use a previously downloaded MP3 file. This avoids re-downloading and speeds up transcription significantly."
+msgstr "为获得最佳性能，请选择特定语言（而不是自动检测）并使用之前下载的MP3文件。这样可以避免重新下载并显著加快转录速度。"
+

@@ -110,9 +110,17 @@ msgstr "Sesión de descarga expirada. Intenta de nuevo."
 msgid "No downloads yet"
 msgstr "Aún no hay descargas"
 
-#: templates/index.html:386
-msgid "Download"
-msgstr "Descargar"
+#: templates/index.html:407
+msgid "Download as TXT"
+msgstr "Descargar como TXT"
+
+#: templates/index.html:367
+msgid "Performance Tip"
+msgstr "Consejo de Rendimiento"
+
+#: templates/index.html:367
+msgid "For best performance, select a specific language (instead of auto-detect) and use a previously downloaded MP3 file. This avoids re-downloading and speeds up transcription significantly."
+msgstr "Para obtener el mejor rendimiento, seleccione un idioma específico (en lugar de detección automática) y use un archivo MP3 descargado previamente. Esto evita volver a descargar y acelera significativamente la transcripción."
 
 #: templates/index.html:387
 msgid "Download failed"
