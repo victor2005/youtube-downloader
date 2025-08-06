@@ -82,13 +82,22 @@ app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-product
 
 # Pre-load models when module is imported (for WSGI servers)
 # This ensures models are loaded even when not running as __main__
+# Load in background thread to not block the app startup and healthcheck
 if os.environ.get('PRELOAD_MODELS', 'true').lower() != 'false':
-    try:
-        logging.info("Pre-loading models on module import...")
-        preload_models()
-        logging.info("Models pre-loaded successfully on module import")
-    except Exception as e:
-        logging.error(f"Failed to pre-load models on import: {e}")
+    def background_preload():
+        try:
+            logging.info("Pre-loading models in background thread...")
+            preload_models()
+            logging.info("Models pre-loaded successfully in background")
+        except Exception as e:
+            logging.error(f"Failed to pre-load models in background: {e}")
+    
+    # Start preloading in a background thread
+    import threading
+    preload_thread = threading.Thread(target=background_preload)
+    preload_thread.daemon = True
+    preload_thread.start()
+    logging.info("Model pre-loading started in background thread")
 
 # Initialize resource manager
 try:
@@ -1987,13 +1996,23 @@ def transcribe_audio():
 if __name__ == '__main__':
     import os
     try:
-        # Pre-load models on startup
-        logging.info("Starting model pre-loading...")
-        preload_models()
-        logging.info("Model pre-loading completed")
+        # Pre-load models on startup in background thread
+        def background_preload():
+            try:
+                logging.info("Starting model pre-loading in background...")
+                preload_models()
+                logging.info("Model pre-loading completed in background")
+            except Exception as e:
+                logging.error(f"Failed to pre-load models: {e}")
+        
+        # Start preloading in background so app can start immediately
+        import threading
+        preload_thread = threading.Thread(target=background_preload)
+        preload_thread.daemon = True
+        preload_thread.start()
         
         port = int(os.environ.get('PORT', 8080))
-        logging.info(f"Starting Flask app on port {port}")
+        logging.info(f"Starting Flask app on port {port} (models loading in background)")
         app.run(debug=False, host='0.0.0.0', port=port)
     except Exception as e:
         logging.error(f"Failed to start Flask app: {e}")
