@@ -1111,7 +1111,9 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
         } catch (error) {
             console.error('Transcription failed:', error);
             this.updateStatus(`Error: ${error.message}`, 0);
-            alert(`Transcription failed: ${error.message}`);
+            if (window.notifyError) {
+                window.notifyError('Transcription Failed', error.message);
+            }
         } finally {
             this.isLoading = false;
             this.elements.transcribeBtn.disabled = false;
@@ -1717,7 +1719,9 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
     copyTranscriptionToClipboard() {
         const transcript = this.elements.transcriptText.textContent;
         if (!transcript) {
-            alert('No transcript to copy');
+            if (window.notifyWarning) {
+                window.notifyWarning('No Content', 'No transcript available to copy');
+            }
             return;
         }
 
@@ -1732,17 +1736,23 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
         const cleanTranscript = this.removeTimestampsFromText(transcript);
         
         navigator.clipboard.writeText(cleanTranscript).then(() => {
-            alert('Transcript copied to clipboard (timestamps removed)!');
+            if (window.notifySuccess) {
+                window.notifySuccess('Copied!', 'Transcript copied to clipboard (timestamps removed)');
+            }
         }).catch(err => {
             console.error('Failed to copy transcript:', err);
-            alert('Failed to copy transcript to clipboard');
+            if (window.notifyError) {
+                window.notifyError('Copy Failed', 'Unable to copy transcript to clipboard');
+            }
         });
     }
 
     downloadTranscriptionAsText() {
         const transcript = this.elements.transcriptText.textContent;
         if (!transcript) {
-            alert('No transcript to download');
+            if (window.notifyWarning) {
+                window.notifyWarning('No Content', 'No transcript available to download');
+            }
             return;
         }
 
@@ -1772,6 +1782,11 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
         document.body.removeChild(a);
         
         window.URL.revokeObjectURL(url);
+        
+        // Show success notification
+        if (window.notifySuccess) {
+            window.notifySuccess('Downloaded!', `Transcript saved as ${transcriptFilename}`);
+        }
     }
 
     // Public method to show/hide transcription section

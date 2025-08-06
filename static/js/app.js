@@ -57,8 +57,12 @@ document.getElementById('downloadForm').addEventListener('submit', async (e) => 
             throw new Error(data.error || window.i18n.downloadFailed);
         }
     } catch (error) {
-        errorMessage.textContent = error.message;
-        errorMessage.style.display = 'block';
+        if (window.notifyError) {
+            window.notifyError('Download Failed', error.message);
+        } else {
+            errorMessage.textContent = error.message;
+            errorMessage.style.display = 'block';
+        }
         resetForm();
     }
 });
@@ -109,8 +113,14 @@ function monitorProgress(downloadId) {
                 console.log('Download finished, updating UI and refreshing downloads list');
                 progressFill.style.width = '100%';
                 progressText.textContent = window.i18n.fileReadyForDownload;
-                document.getElementById('successMessage').textContent = window.i18n.fileConvertedReady;
-                document.getElementById('successMessage').style.display = 'block';
+                
+                // Show modern notification for successful download
+                if (window.notifySuccess) {
+                    window.notifySuccess('Download Complete!', window.i18n.fileConvertedReady);
+                } else {
+                    document.getElementById('successMessage').textContent = window.i18n.fileConvertedReady;
+                    document.getElementById('successMessage').style.display = 'block';
+                }
                 resetForm();
                 
                 // Check if Safari - only add delay for Safari
@@ -136,15 +146,23 @@ function monitorProgress(downloadId) {
                 throw new Error(progress.error);
             } else if (progress.status === 'not_found') {
                 console.log('Download ID not found, stopping progress check');
-                document.getElementById('errorMessage').textContent = window.i18n.downloadSessionExpired;
-                document.getElementById('errorMessage').style.display = 'block';
+                if (window.notifyWarning) {
+                    window.notifyWarning('Session Expired', window.i18n.downloadSessionExpired);
+                } else {
+                    document.getElementById('errorMessage').textContent = window.i18n.downloadSessionExpired;
+                    document.getElementById('errorMessage').style.display = 'block';
+                }
                 resetForm();
             } else {
                 setTimeout(checkProgress, 1000);
             }
         } catch (error) {
-            document.getElementById('errorMessage').textContent = error.message;
-            document.getElementById('errorMessage').style.display = 'block';
+            if (window.notifyError) {
+                window.notifyError('Download Error', error.message);
+            } else {
+                document.getElementById('errorMessage').textContent = error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+            }
             resetForm();
         }
     };
@@ -206,9 +224,11 @@ async function loadDownloads() {
                 `;
                 downloadsList.appendChild(li);
                 
-                // Add click handler for ad trigger
+                // Add click handler for ad trigger and download notification
                 const downloadLink = li.querySelector('.download-link');
                 downloadLink.addEventListener('click', (e) => {
+                    const filename = file.name;
+                    
                     // Trigger ad event with slight delay
                     if (window.monetagAdTrigger) {
                         e.preventDefault(); // Prevent immediate download
@@ -219,10 +239,22 @@ async function loadDownloads() {
                             window.monetagAdTrigger('file_download');
                         }, 200);
                         
+                        // Show download notification
+                        setTimeout(() => {
+                            if (window.notifyInfo) {
+                                window.notifyInfo('Download Started', `Downloading ${filename}...`);
+                            }
+                        }, 300);
+                        
                         // Then proceed with download after a short delay
                         setTimeout(() => {
                             window.location.href = href;
                         }, 500);
+                    } else {
+                        // Show download notification even without ads
+                        if (window.notifyInfo) {
+                            window.notifyInfo('Download Started', `Downloading ${filename}...`);
+                        }
                     }
                 });
             });
