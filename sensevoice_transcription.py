@@ -30,12 +30,18 @@ logging.getLogger('funasr.auto').setLevel(logging.ERROR)
 class SenseVoiceTranscriber:
     """SenseVoice transcription wrapper with natural pause detection and model selection"""
     
-    def __init__(self):
+    def __init__(self, preloaded_model=None):
         self.models = {}  # Cache multiple models
         self.current_model_name = None
         self.is_available = False
         self.rich_transcription_postprocess = None
         self._initialize_postprocess()
+        
+        # If a pre-loaded model is provided, use it
+        if preloaded_model is not None:
+            self.models["SenseVoiceSmall"] = preloaded_model
+            self.current_model_name = "SenseVoiceSmall"
+            logger.info("✅ Using pre-loaded SenseVoiceSmall model")
     
     def _initialize_postprocess(self):
         """Initialize post-processing utilities"""
@@ -103,6 +109,90 @@ class SenseVoiceTranscriber:
             if model is None:
                 return None
         return self.models[model_name]
+    
+    def find_speech_segments_from_array(self, audio_array, sample_rate: int = 16000, min_chunk_duration: float = 5.0, max_chunk_duration: float = 15.0, min_silence_duration: float = 0.3) -> List[Tuple[int, int]]:
+        """
+        Find natural speech segments in audio array using energy-based detection
+        
+        Args:
+            audio_array: Numpy array of audio data
+            sample_rate: Sample rate of the audio
+            min_chunk_duration: Minimum chunk duration in seconds
+            max_chunk_duration: Maximum chunk duration in seconds
+            min_silence_duration: Minimum silence duration to consider as pause
+            
+        Returns:
+            List of (start_sample, end_sample) tuples for each segment
+        """
+        try:
+            import numpy as np
+            
+            # Ensure float32 array
+            if audio_array.dtype != np.float32:
+                audio_array = audio_array.astype(np.float32)
+            
+            # Calculate RMS energy
+            hop_length = int(0.01 * sample_rate)  # 10ms hop
+            frame_length = int(0.03 * sample_rate)  # 30ms frame
+            
+            # Manual RMS calculation for simplicity
+            num_frames = 1 + (len(audio_array) - frame_length) // hop_length
+            rms = np.zeros(num_frames)
+            
+            for i in range(num_frames):
+                start = i * hop_length
+                end = start + frame_length
+                frame = audio_array[start:end]
+                rms[i] = np.sqrt(np.mean(frame ** 2))
+            
+            # Find silent regions (below 1% of max energy)
+            silence_threshold = np.max(rms) * 0.01
+            is_silent = rms < silence_threshold
+            
+            # Convert to sample boundaries
+            boundaries = []
+            start_sample = 0
+            min_samples = int(min_chunk_duration * sample_rate)
+            max_samples = int(max_chunk_duration * sample_rate)
+            min_silence_samples = int(min_silence_duration * sample_rate / hop_length)
+            
+            # Track silence duration
+            silence_count = 0
+            
+            for i in range(1, len(is_silent)):
+                current_sample = i * hop_length
+                chunk_duration = current_sample - start_sample
+                
+                if is_silent[i]:
+                    silence_count += 1
+                else:
+                    # Check if we had a long enough silence and chunk is long enough
+                    if silence_count >= min_silence_samples and chunk_duration >= min_samples:
+                        boundaries.append((start_sample, current_sample))
+                        start_sample = current_sample
+                    silence_count = 0
+                
+                # Force split if reached max duration
+                if chunk_duration >= max_samples:
+                    boundaries.append((start_sample, current_sample))
+                    start_sample = current_sample
+                    silence_count = 0
+            
+            # Add final segment
+            if start_sample < len(audio_array):
+                boundaries.append((start_sample, len(audio_array)))
+            
+            # If no boundaries found, return single segment
+            if not boundaries:
+                boundaries = [(0, len(audio_array))]
+            
+            logger.info(f"📊 Detected {len(boundaries)} segments using natural pauses from array")
+            return boundaries
+            
+        except Exception as e:
+            logger.warning(f"Natural pause detection from array failed: {e}")
+            # Fallback to single segment
+            return [(0, len(audio_array))]
     
     def find_speech_segments(self, audio_file_path: str, base_chunk_duration: int = 30) -> List[Tuple[int, int]]:
         """
@@ -511,6 +601,13 @@ class SenseVoiceTranscriber:
 
 # Create global transcriber instance
 sense_voice_transcriber = SenseVoiceTranscriber()
+
+def set_preloaded_sensevoice_model(model):
+    """Set pre-loaded SenseVoice model to avoid duplicate loading"""
+    if model is not None:
+        sense_voice_transcriber.models["SenseVoiceSmall"] = model
+        sense_voice_transcriber.current_model_name = "SenseVoiceSmall"
+        logger.info("✅ Pre-loaded SenseVoiceSmall model set successfully")
 
 def is_sensevoice_available() -> bool:
     """Check if SenseVoice is available"""

@@ -198,7 +198,7 @@ class WhisperTranscriber:
                 }
 
 
-def transcribe_from_url_with_whisper(url: str, language: str = "auto", streaming: bool = False) -> Dict[str, Any]:
+def transcribe_from_url_with_whisper(url: str, language: str = "auto", streaming: bool = False, preloaded_transcriber: Optional['WhisperTranscriber'] = None) -> Dict[str, Any]:
     """
     Transcribe audio from URL using Whisper with automatic language detection
     Can either download to temp file or stream directly
@@ -207,12 +207,13 @@ def transcribe_from_url_with_whisper(url: str, language: str = "auto", streaming
         url: YouTube or direct audio URL
         language: Language code or "auto" for detection
         streaming: If True, stream audio without downloading full file
+        preloaded_transcriber: Optional pre-loaded WhisperTranscriber instance
         
     Returns:
         Transcription result
     """
     if streaming:
-        return transcribe_from_url_streaming_whisper(url, language)
+        return transcribe_from_url_streaming_whisper(url, language, preloaded_transcriber)
     else:
         # Original download-based approach for non-streaming
         temp_file = None
@@ -220,8 +221,8 @@ def transcribe_from_url_with_whisper(url: str, language: str = "auto", streaming
             import yt_dlp
             import uuid
             
-            # Initialize transcriber
-            transcriber = WhisperTranscriber(model_size="base")
+            # Use pre-loaded transcriber if available, otherwise create new one
+            transcriber = preloaded_transcriber if preloaded_transcriber else WhisperTranscriber(model_size="base")
             
             # Create temporary directory if it doesn't exist
             temp_dir = tempfile.gettempdir()
@@ -296,7 +297,7 @@ def transcribe_from_url_with_whisper(url: str, language: str = "auto", streaming
                     logging.warning(f"Failed to clean up temporary file: {e}")
 
 
-def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "auto") -> Generator[Dict[str, Any], None, None]:
+def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "auto", preloaded_transcriber: Optional['WhisperTranscriber'] = None) -> Generator[Dict[str, Any], None, None]:
     """
     Stream audio from URL and transcribe with Whisper in chunks
     Yields SSE-compatible chunks for real-time streaming
@@ -304,6 +305,7 @@ def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "a
     Args:
         url: YouTube or direct audio URL
         language: Language code or "auto" for detection
+        preloaded_transcriber: Optional pre-loaded WhisperTranscriber instance
         
     Yields:
         Dict chunks for SSE streaming
@@ -311,8 +313,8 @@ def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "a
     try:
         import yt_dlp
         
-        # Initialize transcriber
-        transcriber = WhisperTranscriber(model_size="base")
+        # Use pre-loaded transcriber if available, otherwise create new one
+        transcriber = preloaded_transcriber if preloaded_transcriber else WhisperTranscriber(model_size="base")
         
         # Extract audio stream URL
         ydl_opts = {'quiet': True, 'no_warnings': True}
@@ -365,7 +367,7 @@ def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "a
         process = subprocess.Popen(
             ffmpeg_cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.DEVNULL  # Discard stderr to prevent buffer filling up
         )
         
         # Process audio with natural pause detection
@@ -515,7 +517,7 @@ def transcribe_from_url_streaming_whisper_generator(url: str, language: str = "a
         yield {'success': False, 'error': str(e), 'final': True}
 
 
-def transcribe_from_url_streaming_whisper(url: str, language: str = "auto") -> Dict[str, Any]:
+def transcribe_from_url_streaming_whisper(url: str, language: str = "auto", preloaded_transcriber: Optional['WhisperTranscriber'] = None) -> Dict[str, Any]:
     """
     Stream audio from URL and transcribe with Whisper in chunks
     Uses VAD for natural pause detection
@@ -523,6 +525,7 @@ def transcribe_from_url_streaming_whisper(url: str, language: str = "auto") -> D
     Args:
         url: YouTube or direct audio URL
         language: Language code or "auto" for detection
+        preloaded_transcriber: Optional pre-loaded WhisperTranscriber instance
         
     Returns:
         Transcription result
@@ -530,8 +533,8 @@ def transcribe_from_url_streaming_whisper(url: str, language: str = "auto") -> D
     try:
         import yt_dlp
         
-        # Initialize transcriber
-        transcriber = WhisperTranscriber(model_size="base")
+        # Use pre-loaded transcriber if available, otherwise create new one
+        transcriber = preloaded_transcriber if preloaded_transcriber else WhisperTranscriber(model_size="base")
         
         # Extract audio stream URL
         ydl_opts = {'quiet': True, 'no_warnings': True}
@@ -583,7 +586,7 @@ def transcribe_from_url_streaming_whisper(url: str, language: str = "auto") -> D
         process = subprocess.Popen(
             ffmpeg_cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.DEVNULL  # Discard stderr to prevent buffer filling up
         )
         
         # Process audio with natural pause detection

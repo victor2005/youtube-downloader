@@ -9,6 +9,7 @@ import logging
 import threading
 from pathlib import Path
 from resource_manager import ResourceManager
+import concurrent.futures
 
 # Import SenseVoice transcription
 try:
@@ -17,7 +18,8 @@ try:
         transcribe_with_sensevoice,
         transcribe_with_sensevoice_streaming,
         transcribe_with_sensevoice_from_array,
-        get_sensevoice_status
+        get_sensevoice_status,
+        set_preloaded_sensevoice_model
     )
     SENSEVOICE_AVAILABLE = True
 except ImportError as e:
@@ -59,6 +61,9 @@ def preload_models():
             from funasr import AutoModel
             PRELOADED_SENSEVOICE = AutoModel(model="iic/SenseVoiceSmall")
             logging.info("SenseVoice model pre-loaded successfully")
+            # Register the pre-loaded model with the transcription module
+            set_preloaded_sensevoice_model(PRELOADED_SENSEVOICE)
+            logging.info("Pre-loaded SenseVoice model registered with transcription module")
         except Exception as e:
             logging.warning(f"Failed to pre-load SenseVoice model: {e}")
 
@@ -74,6 +79,16 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Pre-load models when module is imported (for WSGI servers)
+# This ensures models are loaded even when not running as __main__
+if os.environ.get('PRELOAD_MODELS', 'true').lower() != 'false':
+    try:
+        logging.info("Pre-loading models on module import...")
+        preload_models()
+        logging.info("Models pre-loaded successfully on module import")
+    except Exception as e:
+        logging.error(f"Failed to pre-load models on import: {e}")
 
 # Initialize resource manager
 try:
@@ -687,7 +702,6 @@ def download_video(url, format_type, download_id, user_id):
                 logging.error(f"Download error for {download_id}: {e}")
         
         # Start download in a separate thread with timeout
-        import concurrent.futures
         
         logging.info(f"Starting download thread for {download_id}")
         
@@ -1120,6 +1134,9 @@ def transcribe_url_poll():
                 
                 ffmpeg_cmd = [
                     'ffmpeg',
+                    '-reconnect', '1',
+                    '-reconnect_streamed', '1',
+                    '-reconnect_delay_max', '30',
                     '-i', audio_url,
                     '-f', 'wav',
                     '-acodec', 'pcm_s16le',
@@ -1131,14 +1148,15 @@ def transcribe_url_poll():
                 process = subprocess.Popen(
                     ffmpeg_cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.PIPE,  # Capture stderr for debugging
+                    bufsize=0  # Unbuffered
                 )
                 
                 # Process with chunked streaming
-                chunk_size = 16000 * 30  # 30-second chunks
                 chunk_count = 0
                 total_transcript = []
                 detected_language = None
+                audio_buffer = np.array([], dtype=np.float32)
                 
                 # Initialize variables for language detection
                 use_language = language if language != 'auto' else None
@@ -1149,82 +1167,136 @@ def transcribe_url_poll():
                     try:
                         # Use pre-loaded model if available, otherwise create new one
                         whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="base")
-                        logging.info("Auto language detection requested, will use Whisper to detect from first chunk")
+                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper model for language detection")
                     except Exception as e:
                         logging.warning(f"Failed to initialize Whisper: {e}")
                         use_language = 'zh'  # Fallback to Chinese for SenseVoice
+
+                # Parameters for natural pause detection
+                min_chunk_duration = 5  # minimum 5 seconds
+                max_chunk_duration = 15  # maximum 15 seconds for faster updates
+                silence_threshold = 0.01
+                min_silence_duration = 0.3  # 300ms of silence
+                
+                sample_rate = 16000
+                min_samples = int(min_chunk_duration * sample_rate)
+                max_samples = int(max_chunk_duration * sample_rate)
+                silence_samples = int(min_silence_duration * sample_rate)
+                
+                # If language is specified (not auto), use natural pauses from start
+                language_detected = False
+                if language != 'auto':
+                    language_detected = True
+                    detected_language = language
+                    use_language = language
+                    logging.info(f"Language explicitly specified as '{language}', processing with natural pauses from start")
+                
+                consecutive_silence = 0
+                initial_chunk_done = False
+                empty_reads = 0  # Track consecutive empty reads
+                max_empty_reads = 50  # Allow up to 50 empty reads (5 seconds) before considering stream ended
+                total_bytes_read = 0
                 
                 try:
-                    while True:
-                        chunk = process.stdout.read(chunk_size * 2)  # 2 bytes per sample
-                        if not chunk:
+                    # Asynchronously capture and log stderr
+                    def log_stderr():
+                        for line in iter(process.stderr.readline, b''):
+                            logging.info(f"ffmpeg stderr: {line.decode('utf-8').strip()}")
+
+                    stderr_thread = threading.Thread(target=log_stderr)
+                    stderr_thread.daemon = True
+                    stderr_thread.start()
+
+                    # Read the entire audio stream at once
+                    logging.info("Reading entire ffmpeg audio output into buffer...")
+                    audio_bytes = process.stdout.read()
+                    total_bytes_read = len(audio_bytes)
+                    logging.info(f"Finished reading audio stream. Total bytes: {total_bytes_read}")
+
+                    # Wait for ffmpeg to finish and get return code
+                    process.wait()
+                    logging.info(f"FFmpeg process finished with return code: {process.returncode}")
+                    
+                    # Convert the entire audio byte stream to a float array
+                    audio_buffer = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                    
+                    # Now process the full audio buffer in chunks
+                    buffer_pos = 0
+                    while buffer_pos < len(audio_buffer):
+                        # Determine chunk size, either max_samples or the remainder of the buffer
+                        chunk_end = min(buffer_pos + max_samples, len(audio_buffer))
+                        process_chunk = audio_buffer[buffer_pos:chunk_end]
+                        
+                        if len(process_chunk) == 0:
                             break
                         
-                        # Convert to numpy array
-                        audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                        chunk_count += 1
+                        chunk_duration = len(process_chunk) / 16000
+                        logging.info(f"Processing chunk {chunk_count} ({chunk_duration:.1f}s)")
                         
-                        # Transcribe chunk if it's long enough (at least 1 second)
-                        if len(audio_chunk) > 16000:
-                            chunk_count += 1
-                            logging.info(f"Processing chunk {chunk_count} ({len(audio_chunk)/16000:.1f}s)")
-                            
-                            # Detect language from first chunk if auto mode
-                            if chunk_count == 1 and language == 'auto' and whisper_transcriber:
-                                try:
-                                    detected_language = whisper_transcriber.detect_language(audio_chunk)
-                                    logging.info(f"Detected language: {detected_language}")
-                                    
-                                    # Decide which model to use based on detected language
-                                    if detected_language in sensevoice_optimal_languages:
-                                        use_language = detected_language
-                                        logging.info(f"Using SenseVoice for {detected_language}")
-                                    else:
-                                        # Use Whisper for non-Asian languages
-                                        result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
-                                        if result.get('success'):
-                                            text = result['text'].strip()
-                                            if text and len(text) > 1:
-                                                total_transcript.append(text)
-                                                transcription_progress['chunks'].append(text)
-                                        continue  # Skip SenseVoice processing
-                                except Exception as e:
-                                    logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
-                                    use_language = 'zh'
-                                    detected_language = 'zh'
-                            
-                            # Use appropriate transcription based on language
+                        # Your existing transcription logic for a chunk
+                        if chunk_count == 1 and language == 'auto' and whisper_transcriber:
+                            try:
+                                detected_language = whisper_transcriber.detect_language(process_chunk)
+                                logging.info(f"Detected language: {detected_language}")
+                            except Exception as e:
+                                logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
+                                use_language = 'zh'
+                                detected_language = 'zh'
+                        
+                        transcription_timed_out = False
+                        try:
                             if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
-                                # Use Whisper for non-Asian languages
-                                result = whisper_transcriber.transcribe(audio_chunk, language=detected_language)
+                                result = whisper_transcriber.transcribe(process_chunk, language=detected_language)
                                 model_used = 'whisper'
                             else:
-                                # Use SenseVoice for Asian languages or fallback
                                 result = transcribe_with_sensevoice_from_array(
-                                    audio_array=audio_chunk,
+                                    audio_array=process_chunk,
                                     sample_rate=16000,
                                     language=use_language or 'zh',
                                     model_name='SenseVoiceSmall'
                                 )
                                 model_used = 'sensevoice'
-                            
-                            if result.get('success') and result.get('text'):
-                                # Filter out empty or very short transcripts
-                                text = result['text'].strip()
-                                if text and len(text) > 1:  # Skip single character results
+                        except Exception as e:
+                            logging.error(f"Transcription for chunk {chunk_count} failed: {e}")
+                            result = {'success': False, 'text': ''}
+
+                        if result.get('success') and result.get('text'):
+                            text = result['text'].strip()
+                            if text and len(text) > 1:
+                                # Check for and remove duplicate text between chunks
+                                if total_transcript and chunk_count > 1:
+                                    # Get last few words from previous transcript
+                                    last_transcript = total_transcript[-1]
+                                    last_words = last_transcript.split()[-5:] if last_transcript else []
+                                    
+                                    # Check if current text starts with any of the last words
+                                    if last_words:
+                                        current_words = text.split()
+                                        for i in range(len(last_words)):
+                                            # Try matching from different positions
+                                            overlap_candidate = ' '.join(last_words[i:])
+                                            if text.startswith(overlap_candidate):
+                                                # Remove the overlapping part
+                                                text = text[len(overlap_candidate):].strip()
+                                                logging.info(f"Removed overlap in polling: '{overlap_candidate}'")
+                                                break
+                                
+                                # Only add non-empty text after overlap removal
+                                if text:
                                     total_transcript.append(text)
                                     transcription_progress['chunks'].append(text)
                                     logging.info(f"Polling transcription: Processed chunk {chunk_count}, Length: {len(text)} chars, Model used: {model_used}, Text: {text[:30]}...")
-                    
-                    process.wait()
-                    
+
+                        buffer_pos = chunk_end
+                        
                     # Set final result
                     final_transcript = ' '.join(total_transcript)
                     transcription_progress['final_transcript'] = final_transcript
                     transcription_progress['complete'] = True
                     transcription_progress['status'] = 'completed'
-                    
                     logging.info(f"Polling transcription successfully completed for session {session_id}. Total chunks: {chunk_count}")
-                    
+
                 except Exception as e:
                     process.terminate()
                     raise e
@@ -1299,7 +1371,7 @@ def transcribe_url():
                 def generate_whisper_streaming_response():
                     import json
                     try:
-                        for chunk in transcribe_from_url_streaming_whisper_generator(url, language):
+                        for chunk in transcribe_from_url_streaming_whisper_generator(url, language, PRELOADED_WHISPER):
                             yield f"data: {json.dumps(chunk)}\n\n"
                     except Exception as e:
                         error_data = {
@@ -1321,7 +1393,7 @@ def transcribe_url():
                 )
             else:
                 # Non-streaming mode - still use streaming internally to avoid download
-                result = transcribe_from_url_with_whisper(url, language, streaming=True)
+                result = transcribe_from_url_with_whisper(url, language, streaming=True, preloaded_transcriber=PRELOADED_WHISPER)
                 
                 if result.get('success'):
                     return jsonify(result)
@@ -1387,6 +1459,9 @@ def transcribe_url():
         
         ffmpeg_cmd = [
             'ffmpeg',
+            '-reconnect', '1',
+            '-reconnect_streamed', '1',
+            '-reconnect_delay_max', '30',
             '-i', audio_url,
             '-f', 'wav',
             '-acodec', 'pcm_s16le',
@@ -1406,7 +1481,7 @@ def transcribe_url():
                 process = subprocess.Popen(
                     ffmpeg_cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.PIPE  # Capture stderr to prevent blocking
                 )
                 
                 # Process with chunked streaming
@@ -1427,159 +1502,136 @@ def transcribe_url():
                 # Initialize Whisper if available for auto detection
                 if language == 'auto' and WHISPER_AVAILABLE:
                     try:
-                        whisper_transcriber = WhisperTranscriber(model_size="base")
-                        logging.info("Auto language detection requested, will use Whisper to detect from first chunk")
+                        # Use pre-loaded model if available, otherwise create new one
+                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="base")
+                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper model for language detection")
                     except Exception as e:
                         logging.warning(f"Failed to initialize Whisper: {e}")
                         use_language = 'zh'  # Fallback to Chinese for SenseVoice
                 
+                # Parameters for chunk processing
+                max_samples = 16000 * 15  # 15-second max chunks
+                
+                # If language is specified (not auto), skip language detection phase
+                if language != 'auto':
+                    language_detected = True
+                    detected_language = language
+                    use_language = language
+                    logging.info(f"Language explicitly specified as '{language}', skipping detection phase")
+                
                 try:
+                    # Asynchronously capture and filter stderr (suppress verbose info logs)
+                    def log_stderr():
+                        # List of patterns to suppress in ffmpeg logs
+                        suppress_patterns = [
+                            'configuration:',
+                            'libavutil',
+                            'libavcodec', 
+                            'libavformat',
+                            'libavdevice',
+                            'libavfilter',
+                            'libswscale',
+                            'libswresample',
+                            'libpostproc',
+                            'built with',
+                            'Stream #',
+                            'Duration:',
+                            'Metadata:',
+                            'Input #0',
+                            'Output #0'
+                        ]
+                        
+                        for line in iter(process.stderr.readline, b''):
+                            line_str = line.decode('utf-8', errors='ignore').strip()
+                            # Only log warnings, errors, or lines not containing suppressed patterns
+                            if line_str and not any(pattern in line_str for pattern in suppress_patterns):
+                                if 'error' in line_str.lower() or 'warning' in line_str.lower():
+                                    logging.warning(f"ffmpeg: {line_str}")
+                                elif line_str.startswith('['):
+                                    # Log progress or status updates
+                                    logging.debug(f"ffmpeg: {line_str}")
+
+                    stderr_thread = threading.Thread(target=log_stderr)
+                    stderr_thread.daemon = True
+                    stderr_thread.start()
+
+                    # Stream audio data from ffmpeg with smart chunking
+                    logging.info("Streaming audio from ffmpeg with natural pause detection...")
+                    audio_buffer = b''
+                    audio_array_buffer = np.array([], dtype=np.float32)
+                    
+                    # Adaptive chunk sizes based on language detection needs
+                    initial_chunk_seconds = 20 if language == 'auto' else 10  # 20 sec for language detection
+                    normal_chunk_seconds = 15  # Normal processing chunks
+                    min_chunk_seconds = 5  # Minimum chunk size
+                    max_buffer_seconds = 20  # Maximum buffer before forced processing
+                    
+                    sample_rate = 16000
+                    bytes_per_sample = 2
+                    read_chunk_size = sample_rate * bytes_per_sample * 2  # Read 2 seconds at a time
+                    
+                    # For natural pause detection
+                    silence_threshold = 0.01
+                    min_silence_duration = 0.3  # 300ms pause
+                    silence_samples = int(min_silence_duration * sample_rate)
+                    
+                    def find_natural_pause(audio, start_pos, search_window=2.0):
+                        """Find a natural pause within search_window seconds from start_pos"""
+                        search_samples = int(search_window * sample_rate)
+                        end_pos = min(start_pos + search_samples, len(audio))
+                        
+                        if start_pos >= len(audio):
+                            return len(audio)
+                        
+                        # Look for silence in the search window
+                        for i in range(start_pos, end_pos - silence_samples):
+                            window = audio[i:i + silence_samples]
+                            if np.max(np.abs(window)) < silence_threshold:
+                                # Found a pause, return position after the pause
+                                return i + silence_samples
+                        
+                        # No pause found, return the original position
+                        return start_pos
+                    
+                    bytes_read = 0
+                    last_process_pos = 0
+                    
                     while True:
-                        # Use larger chunks for initial language detection, smaller chunks after
-                        current_chunk_size = initial_chunk_size if not language_detected else normal_chunk_size
+                        # Read audio data in smaller chunks for responsiveness
+                        chunk_bytes = process.stdout.read(read_chunk_size)
                         
-                        chunk = process.stdout.read(current_chunk_size * 2)  # 2 bytes per sample
-                        if not chunk:
-                            break
-                        
-                        # Convert to numpy array
-                        audio_chunk = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
-                        
-                        # Add to buffer for natural pause detection
-                        audio_buffer = np.concatenate([audio_buffer, audio_chunk])
-                        
-                        # For first chunk (language detection), process the full 30-second chunk
-                        if not language_detected and len(audio_buffer) >= initial_chunk_size:
-                            # Process the language detection chunk
-                            chunk_count += 1
-                            logging.info(f"Processing language detection chunk {chunk_count}: {len(audio_buffer)/16000:.1f}s")
-                            
-                            # Detect language from first chunk if auto mode
-                            if chunk_count == 1 and language == 'auto' and whisper_transcriber:
-                                try:
-                                    detected_language = whisper_transcriber.detect_language(audio_buffer[:initial_chunk_size])
-                                    logging.info(f"Detected language: {detected_language}")
-                                    language_detected = True
-                                    
-                                    # Decide which model to use based on detected language
-                                    if detected_language in sensevoice_optimal_languages:
-                                        use_language = detected_language
-                                        logging.info(f"Using SenseVoice for {detected_language}")
-                                    else:
-                                        # Use Whisper for non-Asian languages
-                                        result = whisper_transcriber.transcribe(audio_buffer[:initial_chunk_size], language=detected_language)
-                                        if result.get('success'):
-                                            text = result['text'].strip()
-                                            if text and len(text) > 1:
-                                                total_transcript.append(text)
-                                                chunk_data = {
-                                                    'success': True,
-                                                    'text': text,
-                                                    'chunk': chunk_count,
-                                                    'model': 'whisper',
-                                                    'language': detected_language,
-                                                    'final': False
-                                                }
-                                                yield f"data: {json.dumps(chunk_data)}\n\n"
-                                        # Keep remaining buffer for next processing
-                                        audio_buffer = audio_buffer[initial_chunk_size:]
-                                        continue  # Skip SenseVoice processing for this chunk
-                                except Exception as e:
-                                    logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
-                                    use_language = 'zh'
-                                    detected_language = 'zh'
-                                    language_detected = True
-                            
-                            # Process the detection chunk with appropriate model
-                            if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
-                                result = whisper_transcriber.transcribe(audio_buffer[:initial_chunk_size], language=detected_language)
-                                model_used = 'whisper'
-                            else:
-                                result = transcribe_with_sensevoice_from_array(
-                                    audio_array=audio_buffer[:initial_chunk_size],
-                                    sample_rate=16000,
-                                    language=use_language or 'zh',
-                                    model_name='SenseVoiceSmall'
-                                )
-                                model_used = 'sensevoice'
-                            
-                            if result.get('success') and result.get('text'):
-                                text = result['text'].strip()
-                                if text and len(text) > 1:
-                                    total_transcript.append(text)
-                                    chunk_data = {
-                                        'success': True,
-                                        'text': text,
-                                        'chunk': chunk_count,
-                                        'final': False
-                                    }
-                                    yield f"data: {json.dumps(chunk_data)}\n\n"
-                                    logging.info(f"Language detection chunk {chunk_count} sent: {len(text)} chars")
-                            
-                            # Keep remaining buffer and mark language as detected
-                            audio_buffer = audio_buffer[initial_chunk_size:]
-                            language_detected = True
-                        
-                        # After language detection, process in smaller natural pause chunks
-                        elif language_detected and len(audio_buffer) >= normal_chunk_size:
-                            # Find natural pause points using energy-based detection
-                            def find_natural_pause(audio_data, min_chunk_size=16000*5, max_chunk_size=16000*15):
-                                """Find natural pause points in audio using energy detection"""
-                                if len(audio_data) < min_chunk_size:
-                                    return len(audio_data)  # Return full length if too short
-                                
-                                # Calculate energy in overlapping windows
-                                window_size = 1600  # 0.1 second windows
-                                hop_size = 800      # 0.05 second hops
-                                energies = []
-                                
-                                for i in range(0, len(audio_data) - window_size, hop_size):
-                                    window = audio_data[i:i + window_size]
-                                    energy = np.sum(window ** 2)
-                                    energies.append(energy)
-                                
-                                if not energies:
-                                    return min_chunk_size
-                                
-                                # Find low energy regions (potential pauses)
-                                energy_threshold = np.percentile(energies, 25)  # Bottom 25% of energy
-                                
-                                # Look for pause points between min and max chunk size
-                                start_search = min_chunk_size // hop_size
-                                end_search = min(len(energies), max_chunk_size // hop_size)
-                                
-                                best_pause = min_chunk_size
-                                for i in range(start_search, end_search):
-                                    if energies[i] < energy_threshold:
-                                        # Found a low energy point - good place to split
-                                        best_pause = i * hop_size + window_size // 2
-                                        break
-                                
-                                return min(best_pause, len(audio_data))
-                            
-                            # Find natural pause point
-                            pause_point = find_natural_pause(audio_buffer)
-                            
-                            # Process chunk up to pause point
-                            process_chunk = audio_buffer[:pause_point]
-                            
-                            if len(process_chunk) > 16000:  # At least 1 second
+                        if not chunk_bytes:
+                            # Process any remaining buffer
+                            if len(audio_array_buffer) > sample_rate:  # At least 1 second
                                 chunk_count += 1
-                                logging.info(f"Processing natural pause chunk {chunk_count}: {len(process_chunk)/16000:.1f}s")
+                                chunk_duration = len(audio_array_buffer) / sample_rate
+                                logging.info(f"Processing final chunk {chunk_count}: {chunk_duration:.1f}s")
                                 
-                                # Use appropriate transcription based on detected language
+                                # Language detection for first chunk
+                                if chunk_count == 1 and language == 'auto' and whisper_transcriber:
+                                    try:
+                                        detected_language = whisper_transcriber.detect_language(audio_array_buffer)
+                                        logging.info(f"Detected language: {detected_language}")
+                                        language_detected = True
+                                        use_language = detected_language
+                                    except Exception as e:
+                                        logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
+                                        use_language = 'zh'
+                                        detected_language = 'zh'
+                                
+                                # Process the final chunk
                                 if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
-                                    result = whisper_transcriber.transcribe(process_chunk, language=detected_language)
+                                    result = whisper_transcriber.transcribe(audio_array_buffer, language=detected_language)
                                     model_used = 'whisper'
                                 else:
                                     result = transcribe_with_sensevoice_from_array(
-                                        audio_array=process_chunk,
-                                        sample_rate=16000,
+                                        audio_array=audio_array_buffer,
+                                        sample_rate=sample_rate,
                                         language=use_language or 'zh',
                                         model_name='SenseVoiceSmall'
                                     )
                                     model_used = 'sensevoice'
-                                
+
                                 if result.get('success') and result.get('text'):
                                     text = result['text'].strip()
                                     if text and len(text) > 1:
@@ -1588,26 +1640,128 @@ def transcribe_url():
                                             'success': True,
                                             'text': text,
                                             'chunk': chunk_count,
+                                            'model': model_used,
+                                            'language': detected_language,
                                             'final': False
                                         }
                                         yield f"data: {json.dumps(chunk_data)}\n\n"
-                                        logging.info(f"Natural pause chunk {chunk_count} sent: {len(text)} chars")
+                            break
+                        
+                        # Add to buffer
+                        audio_buffer += chunk_bytes
+                        bytes_read += len(chunk_bytes)
+                        
+                        # Convert new bytes to array and append to buffer
+                        new_audio = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                        audio_array_buffer = np.concatenate([audio_array_buffer, new_audio])
+                        
+                        # Determine target chunk size
+                        if chunk_count == 0 and language == 'auto':
+                            # First chunk for language detection - need more audio
+                            target_chunk_seconds = initial_chunk_seconds
+                        else:
+                            target_chunk_seconds = normal_chunk_seconds
+                        
+                        target_samples = int(target_chunk_seconds * sample_rate)
+                        max_buffer_samples = int(max_buffer_seconds * sample_rate)
+                        
+                        # Check if we should process
+                        buffer_duration = len(audio_array_buffer) / sample_rate
+                        should_process = False
+                        process_end_pos = 0
+                        
+                        if len(audio_array_buffer) >= max_buffer_samples:
+                            # Force processing if buffer is too large
+                            should_process = True
+                            # Find natural pause near the target position
+                            process_end_pos = find_natural_pause(audio_array_buffer, target_samples)
+                            logging.info(f"Buffer full ({buffer_duration:.1f}s), processing with natural pause at {process_end_pos/sample_rate:.1f}s")
+                        elif len(audio_array_buffer) >= target_samples:
+                            # Check if we can find a good pause point
+                            pause_pos = find_natural_pause(audio_array_buffer, int(min_chunk_seconds * sample_rate))
+                            if pause_pos < len(audio_array_buffer) - sample_rate * 2:  # Found pause with enough margin
+                                should_process = True
+                                process_end_pos = pause_pos
+                                logging.info(f"Found natural pause at {process_end_pos/sample_rate:.1f}s")
+                        
+                        if should_process and process_end_pos > 0:
+                            # Extract chunk to process
+                            process_chunk = audio_array_buffer[:process_end_pos]
                             
-                            # Keep remaining buffer
-                            audio_buffer = audio_buffer[pause_point:]
-                    
-                    process.wait()
-                    
-                    # Send final result
-                    # Determine which model was predominantly used
-                    final_model = 'SenseVoice'
-                    if detected_language and detected_language not in sensevoice_optimal_languages:
-                        final_model = 'Whisper'
-                    
+                            # Keep a small overlap to avoid cutting words (0.2 seconds)
+                            # Reduced from 0.5 to minimize duplicate text
+                            overlap_samples = int(0.2 * sample_rate)
+                            keep_start = max(0, process_end_pos - overlap_samples)
+                            audio_array_buffer = audio_array_buffer[keep_start:]
+                            
+                            chunk_count += 1
+                            chunk_duration = len(process_chunk) / sample_rate
+                            logging.info(f"Processing chunk {chunk_count}: {chunk_duration:.1f}s")
+                            
+                            # Language detection for first chunk
+                            if chunk_count == 1 and language == 'auto' and whisper_transcriber:
+                                try:
+                                    detected_language = whisper_transcriber.detect_language(process_chunk)
+                                    logging.info(f"Detected language: {detected_language}")
+                                    language_detected = True
+                                    use_language = detected_language
+                                except Exception as e:
+                                    logging.warning(f"Language detection failed: {e}, defaulting to Chinese")
+                                    use_language = 'zh'
+                                    detected_language = 'zh'
+                            
+                            # Use appropriate transcription based on language
+                            if detected_language and detected_language not in sensevoice_optimal_languages and whisper_transcriber:
+                                result = whisper_transcriber.transcribe(process_chunk, language=detected_language)
+                                model_used = 'whisper'
+                            else:
+                                result = transcribe_with_sensevoice_from_array(
+                                    audio_array=process_chunk,
+                                    sample_rate=sample_rate,
+                                    language=use_language or 'zh',
+                                    model_name='SenseVoiceSmall'
+                                )
+                                model_used = 'sensevoice'
+                            
+                            if result.get('success') and result.get('text'):
+                                text = result['text'].strip()
+                                if text and len(text) > 1:
+                                    # Check for and remove duplicate text from overlap
+                                    if total_transcript and chunk_count > 1:
+                                        # Get last few words from previous transcript
+                                        last_transcript = total_transcript[-1]
+                                        last_words = last_transcript.split()[-5:] if last_transcript else []
+                                        
+                                        # Check if current text starts with any of the last words
+                                        if last_words:
+                                            current_words = text.split()
+                                            for i in range(len(last_words)):
+                                                # Try matching from different positions
+                                                overlap_candidate = ' '.join(last_words[i:])
+                                                if text.startswith(overlap_candidate):
+                                                    # Remove the overlapping part
+                                                    text = text[len(overlap_candidate):].strip()
+                                                    logging.info(f"Removed overlap: '{overlap_candidate}'")
+                                                    break
+                                    
+                                    # Only add non-empty text after overlap removal
+                                    if text:
+                                        total_transcript.append(text)
+                                        chunk_data = {
+                                            'success': True,
+                                            'text': text,
+                                            'chunk': chunk_count,
+                                            'model': model_used,
+                                            'language': detected_language,
+                                            'final': False
+                                        }
+                                        yield f"data: {json.dumps(chunk_data)}\n\n"
+
+                    # Send final result after all segments processed
                     final_data = {
                         'success': True,
                         'transcript': ' '.join(total_transcript),
-                        'model': final_model,
+                        'model': 'SenseVoice' if not detected_language or detected_language in sensevoice_optimal_languages else 'Whisper',
                         'language': detected_language or use_language,
                         'duration': duration,
                         'title': video_title,
@@ -1615,7 +1769,7 @@ def transcribe_url():
                         'final': True
                     }
                     yield f"data: {json.dumps(final_data)}\n\n"
-                    
+
                 except Exception as e:
                     process.terminate()
                     error_data = {
