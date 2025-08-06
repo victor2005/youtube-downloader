@@ -24,10 +24,10 @@ ENV HF_HUB_DISABLE_PROGRESS_BARS=1
 # Pre-download models during build with better error handling and progress
 # Download Whisper medium model (larger but better quality)
 RUN python -c "import os; os.environ['HF_HUB_DISABLE_PROGRESS_BARS']='0'; \
-    print('Downloading Whisper medium model...'); \
+    print('Downloading Whisper small model...'); \
     from whisper import load_model; \
-    model = load_model('medium', download_root='/app/models/whisper'); \
-    print('Whisper medium model downloaded successfully')"
+    model = load_model('small', download_root='/app/models/whisper'); \
+    print('Whisper small model downloaded temporarily due to build timeout')"
 
 # Download SenseVoice model
 RUN python -c "import os; \

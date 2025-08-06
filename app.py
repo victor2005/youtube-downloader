@@ -53,8 +53,8 @@ def preload_models():
             if whisper_cache:
                 logging.info(f"Using Whisper cache directory: {whisper_cache}")
                 os.environ['XDG_CACHE_HOME'] = whisper_cache
-            PRELOADED_WHISPER = WhisperTranscriber(model_size="medium")
-            logging.info("Whisper 'medium' model pre-loaded successfully")
+            PRELOADED_WHISPER = WhisperTranscriber(model_size="small")
+            logging.info("Whisper 'small' model pre-loaded successfully")
         except Exception as e:
             logging.warning(f"Failed to pre-load Whisper model: {e}")
     
@@ -1186,8 +1186,8 @@ def transcribe_url_poll():
                 if language == 'auto' and WHISPER_AVAILABLE:
                     try:
                         # Use pre-loaded model if available, otherwise create new one
-                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="medium")
-                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper 'medium' model for language detection")
+                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="small")
+                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper 'small' model for language detection")
                     except Exception as e:
                         logging.warning(f"Failed to initialize Whisper: {e}")
                         use_language = 'zh'  # Fallback to Chinese for SenseVoice
@@ -1657,8 +1657,8 @@ def transcribe_url():
                 if language == 'auto' and WHISPER_AVAILABLE:
                     try:
                         # Use pre-loaded model if available, otherwise create new one
-                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="medium")
-                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper 'medium' model for language detection")
+                        whisper_transcriber = PRELOADED_WHISPER if PRELOADED_WHISPER else WhisperTranscriber(model_size="small")
+                        logging.info(f"Using {'pre-loaded' if PRELOADED_WHISPER else 'new'} Whisper 'small' model for language detection")
                     except Exception as e:
                         logging.warning(f"Failed to initialize Whisper: {e}")
                         use_language = 'zh'  # Fallback to Chinese for SenseVoice
