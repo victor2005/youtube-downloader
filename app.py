@@ -1572,9 +1572,12 @@ def transcribe_url():
                     generate_whisper_streaming_response(),
                     mimetype='text/event-stream',
                     headers={
-                        'Cache-Control': 'no-cache',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate, private',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
                         'Connection': 'keep-alive',
-                        'Access-Control-Allow-Origin': '*'
+                        'Access-Control-Allow-Origin': '*',
+                        'X-Accel-Buffering': 'no'  # Disable Nginx buffering
                     }
                 )
             else:
@@ -1980,9 +1983,12 @@ def transcribe_url():
                 generate_streaming_response(),
                 mimetype='text/event-stream',
                 headers={
-                    'Cache-Control': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate, private',
+                    'Pragma': 'no-cache',
+                    'Expires': '0',
                     'Connection': 'keep-alive',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Accel-Buffering': 'no'  # Disable Nginx buffering
                 }
             )
         
@@ -2152,9 +2158,12 @@ def transcribe_audio():
                 generate_streaming_response(),
                 mimetype='text/event-stream',
                 headers={
-                    'Cache-Control': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate, private',
+                    'Pragma': 'no-cache',
+                    'Expires': '0',
                     'Connection': 'keep-alive',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Accel-Buffering': 'no'  # Disable Nginx buffering
                 }
             )
         else:

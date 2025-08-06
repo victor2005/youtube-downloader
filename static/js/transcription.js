@@ -39,6 +39,16 @@ class TranscriptionManager {
             section: this.elements.section,
             mainUrlInput: this.elements.mainUrlInput
         });
+        
+        // Add click handler for transcription result area
+        if (this.elements.transcriptText) {
+            this.elements.transcriptText.addEventListener('click', (e) => {
+                // Trigger ad when user clicks on transcript text
+                if (window.monetagAdTrigger) {
+                    window.monetagAdTrigger('transcription_interact');
+                }
+            });
+        }
     }
 
     bindEvents() {
@@ -1692,8 +1702,14 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
     removeTimestampsFromText(text) {
         if (!text) return '';
         
-        // Remove timestamp patterns like [0:00-0:30] (3s) or [NaN:NaN-NaN:NaN]
-        return text.replace(/\[\d+:\d{2}-\d+:\d{2}\]\s*\(\d+s\)|\[NaN:NaN-NaN:NaN\]\s*/g, '')
+        // Remove Whisper timestamp patterns like [0:00-0:30] (3s) or [NaN:NaN-NaN:NaN]
+        text = text.replace(/\[\d+:\d{2}-\d+:\d{2}\]\s*\(\d+s\)|\[NaN:NaN-NaN:NaN\]\s*/g, '');
+        
+        // Remove SenseVoice timestamp patterns like 个人。[13:22 - 13:28] and 不限。[13:28 - 13:33]
+        text = text.replace(/\[\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\]/g, '');
+        
+        // Clean up extra spaces and blank lines
+        return text.replace(/\s+/g, ' ') // Replace multiple spaces with single space
                   .replace(/\n\s*\n/g, '\n') // Remove extra blank lines
                   .trim();
     }
@@ -1703,6 +1719,13 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
         if (!transcript) {
             alert('No transcript to copy');
             return;
+        }
+
+        // Trigger ad event with slight delay
+        if (window.monetagAdTrigger) {
+            setTimeout(() => {
+                window.monetagAdTrigger('transcription_copy');
+            }, 200);
         }
 
         // Remove timestamps for cleaner text
@@ -1721,6 +1744,13 @@ const useSenseVoice = sensevoiceLanguages.includes(selectedLanguage) && this.sen
         if (!transcript) {
             alert('No transcript to download');
             return;
+        }
+
+        // Trigger ad event with slight delay
+        if (window.monetagAdTrigger) {
+            setTimeout(() => {
+                window.monetagAdTrigger('transcription_download');
+            }, 200);
         }
 
         // Remove timestamps for cleaner text

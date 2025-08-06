@@ -7,9 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-style.css') }}">
     <link rel="preload" href="{{ url_for('static', filename='js/app.js') }}" as="script">
     
-    <!-- Dreamy Tag (All-in-One) -->
-    <script src="https://fpyf8.com/88/tag.min.js" data-zone="160827" async data-cfasync="false"></script>
-    
+    <!-- Dreamy Tag (All-in-One) -->    
     <!-- Previous tags commented out for rollback if needed
     Skillful Tag without Anti-Adblock:
     <script>(s=>{s.dataset.zone='9653281',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
@@ -631,5 +629,14 @@
         // Load downloads on page load
         loadDownloads();
     </script>-->
+    
+    <!-- Monetag Ad Integration -->
+    <script src="{{ url_for('static', filename='js/monetag-integration.js') }}"></script>
+    
+    <!-- Add your Monetag OnClick/Popunder script here -->
+    <!-- Example:-->
+    <script src="https://otieu.com/4/9679323"></script>
+    
+    
 </body>
 </html>

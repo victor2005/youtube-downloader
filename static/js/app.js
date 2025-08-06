@@ -202,9 +202,29 @@ async function loadDownloads() {
                         <div class="download-item-name">${file.name}</div>
                         <div class="download-item-size">${formatFileSize(file.size)}</div>
                     </div>
-                    <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link">${window.i18n.download}</a>
+                    <a href="/download-file/${encodeURIComponent(file.name)}" class="download-link" data-filename="${file.name}">${window.i18n.download}</a>
                 `;
                 downloadsList.appendChild(li);
+                
+                // Add click handler for ad trigger
+                const downloadLink = li.querySelector('.download-link');
+                downloadLink.addEventListener('click', (e) => {
+                    // Trigger ad event with slight delay
+                    if (window.monetagAdTrigger) {
+                        e.preventDefault(); // Prevent immediate download
+                        const href = downloadLink.href;
+                        
+                        // Trigger ad
+                        setTimeout(() => {
+                            window.monetagAdTrigger('file_download');
+                        }, 200);
+                        
+                        // Then proceed with download after a short delay
+                        setTimeout(() => {
+                            window.location.href = href;
+                        }, 500);
+                    }
+                });
             });
         }
         
