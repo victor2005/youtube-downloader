@@ -1231,6 +1231,7 @@ def transcribe_url_poll():
                     logging.info("Streaming audio from ffmpeg in chunks for polling...")
                     audio_buffer = b''
                     audio_array_buffer = np.array([], dtype=np.float32)
+                    bytes_read = 0  # Initialize bytes_read counter
                     
                     # Read chunk size - 2 seconds at a time for responsiveness
                     read_chunk_size = sample_rate * 2 * 2  # 16000 Hz * 2 bytes/sample * 2 seconds

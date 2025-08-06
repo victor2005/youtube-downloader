@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ _('YouTube Downloader') }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-style.css') }}">
     <link rel="preload" href="{{ url_for('static', filename='js/app.js') }}" as="script">
     
     <!-- Dreamy Tag (All-in-One) -->
@@ -363,15 +363,15 @@
             <div class="transcription-section" id="transcriptionSection" style="display: none;">
                 <h3>🎤 {{ _('Audio Transcription') }}</h3>
                 
-                <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3;">
-                    <p style="margin: 0; color: #1565C0; font-size: 14px;">
+                <div class="performance-tip">
+                    <p>
                         <strong>💡 {{ _('Performance Tip') }}:</strong> {{ _('For best performance, select a specific language (instead of auto-detect) and use a previously downloaded MP3 file. This avoids re-downloading and speeds up transcription significantly.') }}
                     </p>
                 </div>
                 
                 <div class="form-group">
                     <label for="languageSelect">{{ _('Language') }}:</label>
-                    <select id="languageSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                    <select id="languageSelect">
                         <option value="auto">{{ _('Auto-detect') }}</option>
                         <option value="en">English</option>
                         <option value="es">Español</option>
@@ -388,13 +388,13 @@
                 
                 <div style="margin-bottom: 20px;">
                     <details>
-                        <summary style="cursor: pointer; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">📁 {{ _('Or use a previously downloaded file') }}</summary>
+                        <summary>📁 {{ _('Or use a previously downloaded file') }}</summary>
                         <div class="form-group" id="fileInputGroup" style="margin-top: 10px;">
                             <label for="audioFileSelect">{{ _('Select Audio File') }}:</label>
-                            <select id="audioFileSelect" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                            <select id="audioFileSelect">
                                 <option value="">{{ _('Loading available files...') }}</option>
                             </select>
-                            <small style="color: #666; display: block; margin-top: 5px;">{{ _('Select from your previously downloaded audio files') }}</small>
+                            <small style="color: var(--text-secondary); display: block; margin-top: 5px;">{{ _('Select from your previously downloaded audio files') }}</small>
                         </div>
                     </details>
                 </div>
@@ -413,12 +413,10 @@
                 
                 <div class="transcription-result" id="transcriptionResult" style="display: none;">
                     <h4>{{ _('Transcription Result') }}</h4>
-                    <div style="background: white; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; margin: 10px 0; max-height: 300px; overflow-y: auto;">
-                        <div id="transcriptionText" style="white-space: pre-wrap; font-family: monospace;"></div>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <button type="button" onclick="copyTranscription()" style="padding: 8px 15px; background: #51cf66; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📋 {{ _('Copy to Clipboard') }}</button>
-                        <button type="button" onclick="downloadTranscription()" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">💾 {{ _('Download as TXT') }}</button>
+                    <div id="transcriptionText"></div>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                        <button type="button" onclick="copyTranscription()" class="action-btn success">📋 {{ _('Copy to Clipboard') }}</button>
+                        <button type="button" onclick="downloadTranscription()" class="action-btn primary">💾 {{ _('Download as TXT') }}</button>
                     </div>
                 </div>
             </div>
@@ -428,7 +426,7 @@
                 <ul class="downloads-list" id="downloadsList">
                     <!-- Downloaded files will appear here -->
                 </ul>
-                <button type="button" onclick="refreshLists()" style="margin-top: 10px; padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 {{ _('Refresh List') }}</button>
+                <button type="button" onclick="refreshLists()" class="action-btn primary" style="margin-top: 1rem;">🔄 {{ _('Refresh List') }}</button>
             </div>
             
         </div>
