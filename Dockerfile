@@ -37,26 +37,7 @@ RUN python -c "import os; \
     print('SenseVoice model downloaded successfully')"
 
 # Verify models are cached
-RUN python -c "import os; \
-    whisper_cache = '/app/models/whisper'; \
-    sensevoice_cache = '/app/models/sensevoice'; \
-    print('=== Verifying model cache ==='); \
-    if os.path.exists(whisper_cache): \
-        files = sum(len(files) for _, _, files in os.walk(whisper_cache)); \
-        size = sum(os.path.getsize(os.path.join(dirpath, filename)) \
-                  for dirpath, _, filenames in os.walk(whisper_cache) \
-                  for filename in filenames) / (1024*1024); \
-        print(f'✓ Whisper cache: {files} files, {size:.1f} MB'); \
-    else: \
-        print('✗ Whisper cache not found'); \
-    if os.path.exists(sensevoice_cache): \
-        files = sum(len(files) for _, _, files in os.walk(sensevoice_cache)); \
-        size = sum(os.path.getsize(os.path.join(dirpath, filename)) \
-                  for dirpath, _, filenames in os.walk(sensevoice_cache) \
-                  for filename in filenames) / (1024*1024); \
-        print(f'✓ SenseVoice cache: {files} files, {size:.1f} MB'); \
-    else: \
-        print('✗ SenseVoice cache not found')"
+RUN python -c "import os; whisper_cache = '/app/models/whisper'; sensevoice_cache = '/app/models/sensevoice'; print('=== Verifying model cache ==='); print('✓ Whisper cache:', 'exists' if os.path.exists(whisper_cache) else 'not found'); print('✓ SenseVoice cache:', 'exists' if os.path.exists(sensevoice_cache) else 'not found')"
 
 # Copy application code
 COPY . .
