@@ -1,4 +1,4 @@
-/* Modern YouTube Downloader Styles */
+/* Modern FetchTube Styles */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
@@ -76,9 +76,10 @@ body::before {
     padding: 3rem;
     text-align: center;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     margin-bottom: 2rem;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 20;
 }
 
 /* Removed shimmer effect for cleaner look */
@@ -108,6 +109,8 @@ body::before {
     border-radius: 24px;
     padding: 2.5rem;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 10;
 }
 
 /* Form Styling */
@@ -381,35 +384,186 @@ input[type="url"]::placeholder {
     transform: translateY(-1px);
 }
 
-/* Language Selector */
+/* Language Selector - Modern Custom Dropdown */
 .language-selector {
     position: absolute;
     top: 1.5rem;
     right: 1.5rem;
-    z-index: 10;
+    z-index: 99998;
+    /* Ensure dropdown container doesn't get clipped */
+    overflow: visible;
 }
 
-.language-selector select {
-    padding: 0.75rem 2.5rem 0.75rem 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    color: var(--text-primary);
+/* Ensure dropdown container allows overflow */
+.language-selector .custom-dropdown {
+    position: relative;
+    z-index: 99998;
+}
+
+.custom-dropdown {
+    position: relative;
+    min-width: 140px;
+    /* Ensure dropdown options don't get clipped */
+    overflow: visible;
+}
+
+.dropdown-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    color: white;
     font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
-    outline: none;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-    appearance: none;
-    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23ffffff" d="M2 0L0 2h4zM2 5L0 3h4z"/></svg>');
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 10px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    user-select: none;
 }
 
-.language-selector select:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    border-color: var(--primary-color);
+.dropdown-selected:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.12));
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    transform: translateY(-1px);
+}
+
+.language-flag {
+    font-size: 1.1rem;
+    line-height: 1;
+    display: inline-block;
+    width: 18px;
+    text-align: center;
+}
+
+.language-name {
+    flex: 1;
+    white-space: nowrap;
+}
+
+.dropdown-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.3s ease;
+    opacity: 0.8;
+}
+
+.custom-dropdown.open .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.dropdown-options {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    background: var(--bg-dark);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 99999;
+    min-width: 140px;
+}
+
+.custom-dropdown.open .dropdown-options {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdown-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.dropdown-option:first-child {
+    border-radius: 12px 12px 0 0;
+}
+
+.dropdown-option:last-child {
+    border-radius: 0 0 12px 12px;
+    border-bottom: none;
+}
+
+.dropdown-option::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: width 0.3s ease;
+}
+
+.dropdown-option:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+    color: white;
+    padding-left: 1.5rem;
+}
+
+.dropdown-option:hover::before {
+    width: 3px;
+}
+
+.dropdown-option[data-selected="true"] {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.15));
+    color: white;
+    font-weight: 600;
+}
+
+.dropdown-option[data-selected="true"]::before {
+    width: 3px;
+}
+
+.dropdown-option .language-flag {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.dropdown-option:hover .language-flag {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Scrollbar for dropdown */
+.dropdown-options::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-options::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.dropdown-options::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.dropdown-options::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 /* Transcription Section */
@@ -421,6 +575,8 @@ input[type="url"]::placeholder {
     border: 1px solid var(--glass-border);
     border-radius: 24px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 5;
 }
 
 .transcription-section h3 {
@@ -455,28 +611,472 @@ input[type="url"]::placeholder {
 select {
     width: 100%;
     padding: 1rem 3rem 1rem 1.25rem;
-    background: var(--bg-light);
-    border: 2px solid var(--border-color);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid var(--glass-border);
     border-radius: 12px;
     font-size: 1rem;
     color: var(--text-primary);
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     font-family: inherit;
     cursor: pointer;
     appearance: none;
-    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23ffffff" d="M2 0L0 2h4zM2 5L0 3h4z"/></svg>');
+    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 7"><path fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M1 1l5 5 5-5"/></svg>');
     background-repeat: no-repeat;
     background-position: right 1rem center;
-    background-size: 10px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    background-size: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    font-weight: 500;
+    position: relative;
+    z-index: 10;
+}
+
+select:hover {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
+    z-index: 99990;
 }
 
 select:focus {
     outline: none;
     border-color: var(--primary-color);
-    background: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.15));
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2),
-                inset 0 2px 4px rgba(0, 0, 0, 0.1);
+                0 8px 25px rgba(99, 102, 241, 0.4);
+    transform: translateY(-2px);
+    z-index: 99990;
+}
+
+/* Ensure dropdown list has high z-index and modern styling */
+select:focus,
+select[size],
+select[multiple] {
+    z-index: 99990 !important;
+}
+
+/* Modern Dropdown List Items */
+select option {
+    background: var(--bg-dark) !important;
+    color: var(--text-primary) !important;
+    padding: 1rem 1.25rem !important;
+    font-weight: 500;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-shadow: none;
+    margin: 0.25rem 0;
+    position: relative;
+    z-index: 99991 !important;
+}
+
+select optgroup {
+    background: var(--bg-medium) !important;
+    color: var(--text-secondary) !important;
+    font-style: normal;
+    font-weight: 600;
+    padding: 0.75rem;
+    border-bottom: 2px solid var(--glass-border);
+    z-index: 99991 !important;
+}
+
+select option:hover,
+select option:focus {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.15)) !important;
+    color: white !important;
+}
+
+select option:checked {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+    color: white !important;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+/* Modern Select Dropdown Styling */
+.modern-select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.modern-select {
+    position: relative;
+    width: 100%;
+    cursor: pointer;
+    user-select: none;
+}
+
+.modern-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.25) 0%, 
+        rgba(139, 92, 246, 0.2) 50%, 
+        rgba(59, 130, 246, 0.15) 100%);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 3px solid rgba(99, 102, 241, 0.5);
+    border-radius: 12px;
+    box-shadow: 
+        0 8px 32px rgba(99, 102, 241, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    font-weight: 700;
+    color: var(--text-primary);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    font-size: 1.05rem;
+    letter-spacing: 0.025em;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    z-index: 10;
+}
+
+.modern-select-trigger:hover {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.35) 0%, 
+        rgba(139, 92, 246, 0.3) 50%, 
+        rgba(59, 130, 246, 0.25) 100%);
+    border-color: rgba(99, 102, 241, 0.8);
+    box-shadow: 
+        0 12px 40px rgba(99, 102, 241, 0.4),
+        0 0 0 2px rgba(255, 255, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 0 20px rgba(99, 102, 241, 0.6);
+    transform: translateY(-2px);
+}
+
+.modern-select.open .modern-select-trigger {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.4) 0%, 
+        rgba(139, 92, 246, 0.35) 50%, 
+        rgba(59, 130, 246, 0.3) 100%);
+    border-color: var(--primary-color);
+    box-shadow: 
+        0 0 0 5px rgba(99, 102, 241, 0.4),
+        0 15px 50px rgba(99, 102, 241, 0.5),
+        0 0 0 2px rgba(255, 255, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 0 30px rgba(99, 102, 241, 0.7);
+    border-radius: 12px 12px 0 0;
+}
+
+.modern-select-value {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.select-flag {
+    font-size: 1.3rem;
+    line-height: 1;
+    display: inline-block;
+    min-width: 24px;
+    text-align: center;
+}
+
+.select-text {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.modern-select-arrow {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    transition: transform 0.3s ease;
+}
+
+.modern-select.open .modern-select-arrow {
+    transform: rotate(180deg);
+}
+
+.modern-select-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, var(--bg-dark) 0%, rgba(26, 26, 26, 0.98) 100%);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 3px solid rgba(99, 102, 241, 0.5);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 
+        0 15px 40px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 999999;
+    min-width: 100%;
+}
+
+.modern-select.open .modern-select-options {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.modern-select-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    border-left: 4px solid transparent;
+    position: relative;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.025em;
+}
+
+.modern-select-option:last-child {
+    border-bottom: none;
+    border-radius: 0 0 9px 9px;
+}
+
+.modern-select-option:hover {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.4) 0%, 
+        rgba(139, 92, 246, 0.35) 50%, 
+        rgba(59, 130, 246, 0.3) 100%);
+    color: white;
+    font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -1px 0 rgba(99, 102, 241, 0.3);
+    transform: translateX(4px);
+}
+
+.modern-select-option.active {
+    background: linear-gradient(135deg, 
+        var(--primary-color) 0%, 
+        var(--secondary-color) 50%, 
+        rgba(59, 130, 246, 0.9) 100%);
+    color: white;
+    font-weight: 800;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+    border-left: 4px solid white;
+    box-shadow: 
+        0 0 20px rgba(99, 102, 241, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.modern-select-option[data-value="auto"] {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.1));
+    color: #a78bfa;
+    font-style: italic;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+}
+
+.modern-select-option[data-value="auto"]:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.2));
+    color: white;
+    font-style: normal;
+}
+
+/* Scrollbar for dropdown */
+.modern-select-options::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modern-select-options::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.modern-select-options::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.3);
+    border-radius: 4px;
+}
+
+.modern-select-options::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.5);
+}
+
+/* Keep existing hidden select styling */
+#languageSelect,
+#audioFileSelect {
+    /* Hidden native selects */
+}
+
+#languageSelect:hover,
+#audioFileSelect:hover {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.35) 0%, 
+        rgba(139, 92, 246, 0.3) 50%, 
+        rgba(59, 130, 246, 0.25) 100%);
+    border-color: rgba(99, 102, 241, 0.8);
+    box-shadow: 
+        0 12px 40px rgba(99, 102, 241, 0.4),
+        0 0 0 2px rgba(255, 255, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 0 20px rgba(99, 102, 241, 0.6);
+    transform: translateY(-3px) scale(1.02);
+    z-index: 99991;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+#languageSelect:focus,
+#audioFileSelect:focus {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.4) 0%, 
+        rgba(139, 92, 246, 0.35) 50%, 
+        rgba(59, 130, 246, 0.3) 100%);
+    border-color: var(--primary-color);
+    box-shadow: 
+        0 0 0 5px rgba(99, 102, 241, 0.4),
+        0 15px 50px rgba(99, 102, 241, 0.5),
+        0 0 0 2px rgba(255, 255, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 0 30px rgba(99, 102, 241, 0.7);
+    transform: translateY(-4px) scale(1.03);
+    z-index: 99991;
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7);
+    outline: none;
+}
+
+/* Language selector specific options styling - Ultra Enhanced */
+#languageSelect option,
+#audioFileSelect option {
+    background: linear-gradient(135deg, var(--bg-dark) 0%, rgba(26, 26, 26, 0.95) 100%) !important;
+    color: var(--text-primary) !important;
+    padding: 1.5rem 2rem !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.3) !important;
+    border-left: 4px solid transparent !important;
+    position: relative;
+    z-index: 99992 !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    font-size: 1.1rem !important;
+    letter-spacing: 0.025em !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+#languageSelect option:hover,
+#audioFileSelect option:hover,
+#languageSelect option:focus,
+#audioFileSelect option:focus {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.4) 0%, 
+        rgba(139, 92, 246, 0.35) 50%, 
+        rgba(59, 130, 246, 0.3) 100%) !important;
+    color: white !important;
+    font-weight: 800 !important;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8) !important;
+    border-left: 4px solid var(--primary-color) !important;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.7) !important;
+    box-shadow: 
+        0 0 20px rgba(99, 102, 241, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -1px 0 rgba(99, 102, 241, 0.3) !important;
+    transform: translateX(5px) !important;
+    backdrop-filter: blur(25px) !important;
+    -webkit-backdrop-filter: blur(25px) !important;
+}
+
+#languageSelect option:checked,
+#audioFileSelect option:checked {
+    background: linear-gradient(135deg, 
+        var(--primary-color) 0%, 
+        var(--secondary-color) 50%, 
+        rgba(59, 130, 246, 0.9) 100%) !important;
+    color: white !important;
+    font-weight: 800 !important;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9) !important;
+    border-left: 4px solid white !important;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow: 
+        0 0 25px rgba(99, 102, 241, 0.6),
+        0 0 50px rgba(99, 102, 241, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2) !important;
+    transform: translateX(8px) scale(1.02) !important;
+    backdrop-filter: blur(30px) !important;
+    -webkit-backdrop-filter: blur(30px) !important;
+}
+
+/* Special styling for Auto-detect option */
+#languageSelect option[value="auto"] {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.1)) !important;
+    color: #a78bfa !important;
+    font-weight: 700 !important;
+    font-style: italic;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.3) !important;
+}
+
+#languageSelect option[value="auto"]:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.2)) !important;
+    color: white !important;
+}
+
+/* Ensure all select dropdowns appear above other elements */
+select,
+select:focus,
+select:hover,
+select[multiple],
+select[size] {
+    position: relative !important;
+    z-index: 99990 !important;
+}
+
+/* Force dropdown options to have maximum z-index */
+select option,
+select optgroup {
+    position: relative !important;
+    z-index: 99995 !important;
+}
+
+/* Override any container z-index restrictions */
+.transcription-section,
+.content,
+.container {
+    position: relative;
+    /* Remove any overflow hidden that might clip dropdowns */
+    overflow: visible !important;
+}
+
+/* Additional browser-specific fixes for select styling */
+@supports (-webkit-appearance: none) {
+    select {
+        -webkit-appearance: none !important;
+    }
+    
+    select option {
+        -webkit-appearance: none !important;
+        background: var(--bg-dark) !important;
+        color: var(--text-primary) !important;
+    }
+}
+
+@supports (-moz-appearance: none) {
+    select {
+        -moz-appearance: none !important;
+    }
+    
+    select option {
+        background: var(--bg-dark) !important;
+        color: var(--text-primary) !important;
+    }
 }
 
 /* Details/Summary Styling */
@@ -713,7 +1313,7 @@ summary,
     position: fixed;
     top: 2rem;
     right: 2rem;
-    z-index: 10000;
+    z-index: 50000;
     pointer-events: none;
     max-width: 400px;
 }

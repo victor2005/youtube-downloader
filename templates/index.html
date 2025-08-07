@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ _('YouTube Downloader') }}</title>
+    <title>{{ _('FetchTube') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-style.css') }}">
     <link rel="preload" href="{{ url_for('static', filename='js/app.js') }}" as="script">
     
@@ -279,13 +279,23 @@
     <div class="container">
         <div class="header">
             <div class="language-selector">
-                <select onchange="changeLanguage(this.value)">
-                    {% for code, name in languages.items() %}
-                        <option value="{{ code }}" {% if get_locale() == code %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
+                <div class="custom-dropdown" id="languageDropdown">
+                    <div class="dropdown-selected" id="languageSelected">
+                        <span class="language-flag">🌐</span>
+                        <span class="language-name">{% for code, name in languages.items() %}{% if get_locale() == code %}{{ name }}{% endif %}{% endfor %}</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="dropdown-options" id="languageOptions">
+                        {% for code, name in languages.items() %}
+                        <div class="dropdown-option" data-value="{{ code }}" {% if get_locale() == code %}data-selected="true"{% endif %}>
+                            <span class="language-flag">{% if code == 'en' %}🇺🇸{% elif code == 'es' %}🇪🇸{% elif code == 'fr' %}🇫🇷{% elif code == 'de' %}🇩🇪{% elif code == 'it' %}🇮🇹{% elif code == 'pt' %}🇵🇹{% elif code == 'ru' %}🇷🇺{% elif code == 'ja' %}🇯🇵{% elif code == 'ko' %}🇰🇷{% elif code == 'zh' %}🇨🇳{% else %}🌐{% endif %}</span>
+                            <span class="language-name">{{ name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <h1>🎬 {{ _('YouTube Downloader') }}</h1>
+            <h1>🎬 {{ _('FetchTube') }}</h1>
             <p>{{ _('Download videos or extract MP3 audio from YouTube') }}</p>
         </div>
         
@@ -369,19 +379,77 @@
                 
                 <div class="form-group">
                     <label for="languageSelect">{{ _('Language') }}:</label>
-                    <select id="languageSelect">
-                        <option value="auto">{{ _('Auto-detect') }}</option>
-                        <option value="en">English</option>
-                        <option value="es">Español</option>
-                        <option value="fr">Français</option>
-                        <option value="de">Deutsch</option>
-                        <option value="it">Italiano</option>
-                        <option value="pt">Português</option>
-                        <option value="ru">Русский</option>
-                        <option value="ja">日本語</option>
-                        <option value="ko">한국어</option>
-                        <option value="zh">中文</option>
-                    </select>
+                    <div class="modern-select-wrapper">
+                        <div class="modern-select" id="languageSelectCustom" data-value="auto">
+                            <div class="modern-select-trigger">
+                                <span class="modern-select-value">
+                                    <span class="select-flag">🌐</span>
+                                    <span class="select-text">{{ _('Auto-detect') }}</span>
+                                </span>
+                                <span class="modern-select-arrow">▼</span>
+                            </div>
+                            <div class="modern-select-options">
+                                <div class="modern-select-option active" data-value="auto">
+                                    <span class="select-flag">🌐</span>
+                                    <span class="select-text">{{ _('Auto-detect') }}</span>
+                                </div>
+                                <div class="modern-select-option" data-value="en">
+                                    <span class="select-flag">🇺🇸</span>
+                                    <span class="select-text">English</span>
+                                </div>
+                                <div class="modern-select-option" data-value="es">
+                                    <span class="select-flag">🇪🇸</span>
+                                    <span class="select-text">Español</span>
+                                </div>
+                                <div class="modern-select-option" data-value="fr">
+                                    <span class="select-flag">🇫🇷</span>
+                                    <span class="select-text">Français</span>
+                                </div>
+                                <div class="modern-select-option" data-value="de">
+                                    <span class="select-flag">🇩🇪</span>
+                                    <span class="select-text">Deutsch</span>
+                                </div>
+                                <div class="modern-select-option" data-value="it">
+                                    <span class="select-flag">🇮🇹</span>
+                                    <span class="select-text">Italiano</span>
+                                </div>
+                                <div class="modern-select-option" data-value="pt">
+                                    <span class="select-flag">🇵🇹</span>
+                                    <span class="select-text">Português</span>
+                                </div>
+                                <div class="modern-select-option" data-value="ru">
+                                    <span class="select-flag">🇷🇺</span>
+                                    <span class="select-text">Русский</span>
+                                </div>
+                                <div class="modern-select-option" data-value="ja">
+                                    <span class="select-flag">🇯🇵</span>
+                                    <span class="select-text">日本語</span>
+                                </div>
+                                <div class="modern-select-option" data-value="ko">
+                                    <span class="select-flag">🇰🇷</span>
+                                    <span class="select-text">한국어</span>
+                                </div>
+                                <div class="modern-select-option" data-value="zh">
+                                    <span class="select-flag">🇨🇳</span>
+                                    <span class="select-text">中文</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Hidden select for form compatibility -->
+                        <select id="languageSelect" style="display: none;">
+                            <option value="auto">{{ _('Auto-detect') }}</option>
+                            <option value="en">English</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="it">Italiano</option>
+                            <option value="pt">Português</option>
+                            <option value="ru">Русский</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="zh">中文</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -487,11 +555,156 @@
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/transcription.js') }}" defer></script>
     
-    <!-- Language switching function -->
+    <!-- Custom Language Dropdown JavaScript -->
     <script>
         function changeLanguage(lang) {
             window.location.href = '/set_language/' + lang;
         }
+
+        // Custom dropdown functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdown = document.getElementById('languageDropdown');
+            const selected = document.getElementById('languageSelected');
+            const options = document.getElementById('languageOptions');
+            const optionItems = options.querySelectorAll('.dropdown-option');
+
+            // Update selected flag based on current locale
+            function updateSelectedFlag() {
+                const currentSelected = options.querySelector('[data-selected="true"]');
+                if (currentSelected) {
+                    const flagSpan = currentSelected.querySelector('.language-flag');
+                    if (flagSpan && selected.querySelector('.language-flag')) {
+                        selected.querySelector('.language-flag').textContent = flagSpan.textContent;
+                    }
+                }
+            }
+
+            // Initialize flag on load
+            updateSelectedFlag();
+
+            // Toggle dropdown
+            selected.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('open');
+            });
+
+            // Select option
+            optionItems.forEach(option => {
+                option.addEventListener('click', function() {
+                    const value = this.getAttribute('data-value');
+                    const flagSpan = this.querySelector('.language-flag');
+                    const nameSpan = this.querySelector('.language-name');
+                    
+                    // Update selected display
+                    if (flagSpan && selected.querySelector('.language-flag')) {
+                        selected.querySelector('.language-flag').textContent = flagSpan.textContent;
+                    }
+                    if (nameSpan && selected.querySelector('.language-name')) {
+                        selected.querySelector('.language-name').textContent = nameSpan.textContent;
+                    }
+                    
+                    // Remove previous selection
+                    optionItems.forEach(opt => opt.removeAttribute('data-selected'));
+                    
+                    // Mark current as selected
+                    this.setAttribute('data-selected', 'true');
+                    
+                    // Close dropdown
+                    dropdown.classList.remove('open');
+                    
+                    // Change language
+                    changeLanguage(value);
+                });
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!dropdown.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+
+            // Close dropdown on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    dropdown.classList.remove('open');
+                }
+            });
+
+            // Keyboard navigation
+            selected.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    dropdown.classList.toggle('open');
+                }
+            });
+
+            // Make selected focusable
+            selected.setAttribute('tabindex', '0');
+            
+            // Initialize custom language select dropdown
+            const customSelect = document.getElementById('languageSelectCustom');
+            const hiddenSelect = document.getElementById('languageSelect');
+            if (customSelect && hiddenSelect) {
+                const trigger = customSelect.querySelector('.modern-select-trigger');
+                const options = customSelect.querySelector('.modern-select-options');
+                const optionItems = customSelect.querySelectorAll('.modern-select-option');
+                
+                // Toggle dropdown
+                trigger.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    customSelect.classList.toggle('open');
+                });
+                
+                // Select option
+                optionItems.forEach(option => {
+                    option.addEventListener('click', function() {
+                        const value = this.getAttribute('data-value');
+                        const text = this.querySelector('.select-text').textContent;
+                        const flag = this.querySelector('.select-flag').textContent;
+                        
+                        // Update display
+                        trigger.querySelector('.select-text').textContent = text;
+                        trigger.querySelector('.select-flag').textContent = flag;
+                        
+                        // Update active state
+                        optionItems.forEach(opt => opt.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Update hidden select
+                        hiddenSelect.value = value;
+                        customSelect.setAttribute('data-value', value);
+                        
+                        // Trigger change event on hidden select
+                        const event = new Event('change', { bubbles: true });
+                        hiddenSelect.dispatchEvent(event);
+                        
+                        // Close dropdown
+                        customSelect.classList.remove('open');
+                    });
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!customSelect.contains(e.target)) {
+                        customSelect.classList.remove('open');
+                    }
+                });
+                
+                // Keyboard navigation
+                trigger.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        customSelect.classList.toggle('open');
+                    } else if (e.key === 'Escape') {
+                        customSelect.classList.remove('open');
+                    }
+                });
+                
+                // Make trigger focusable
+                trigger.setAttribute('tabindex', '0');
+            }
+        });
     </script>
     
     <!--<script>
